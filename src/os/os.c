@@ -1,4 +1,0 @@
-/*
-os.c manages the proccess and the safty of those proccess
-i.e. prevent crashing of entire system from procc accessing wrong memory or null.
-*/
