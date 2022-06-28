@@ -1,20 +1,19 @@
-cmake_minimum_required(VERSION 3.12)
+cmake_minimum_required(VERSION 3.13)
 
-# Pull in SDK (must be before project)
+# initialize pico-sdk from GIT
+# (note this can come from environment, CMake cache etc)
+set(PICO_SDK_FETCH_FROM_GIT on)
+
+# pico_sdk_import.cmake is a single file copied from this SDK
+# note: this must happen before project()
 include(pico_sdk_import.cmake)
 
-project(BDOS C CXX ASM)
-set(CMAKE_C_STANDARD 11)
-set(CMAKE_CXX_STANDARD 17)
+project(my_project)
 
-if (PICO_SDK_VERSION_STRING VERSION_LESS "1.3.0")
-    message(FATAL_ERROR "Raspberry Pi Pico SDK version 1.3.0 (or later) required. Your version is ${PICO_SDK_VERSION_STRING}")
-endif()
-
-set(BDOS_PATH ${PROJECT_SOURCE_DIR})
-
-# Initialize the SDK
+# initialize the Raspberry Pi Pico SDK
 pico_sdk_init()
+
+# rest of your project
 
 # Add hello world example
 add_subdirectory(src)
