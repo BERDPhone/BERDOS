@@ -3,29 +3,8 @@ A mobile phone operating system built on top of the Raspberry Pi Pico.
 
 Currently a work in progress, open an issue to request a feature, and feel free to post a thread on discussions, to find other ways to help.
 
-
-# DOCUMENTATION
-
-<span style="text-decoration:underline;">OS Dev Wiki</span>
-
-[https://wiki.osdev.org/Main_Page](https://wiki.osdev.org/Main_Page)<span style="text-decoration:underline;"> </span>
-
-<span style="text-decoration:underline;">Piccolo OS:</span>
-
-[https://github.com/garyexplains/piccolo_os_v1](https://github.com/garyexplains/piccolo_os_v1) 
-
-<span style="text-decoration:underline;">Component Documentation Links</span>:
-
-[Motherboard (Raspberry Pi Pico) Documentation Directory](https://www.raspberrypi.com/documentation/microcontrollers/raspberry-pi-pico.html)
-
-[Motherboard (Raspberry Pi Pico) Development Kit](https://datasheets.raspberrypi.com/pico/raspberry-pi-pico-c-sdk.pdf) 
-
-[Motherboard (Raspberry Pi Pico) Datasheet](https://datasheets.raspberrypi.com/pico/pico-datasheet.pdf)
-
-[Processor (RP2040) Documentation Directory](https://www.raspberrypi.com/documentation/microcontrollers/rp2040.html#welcome-to-rp2040)
-
-[Processor (RP2040) Datasheet](https://datasheets.raspberrypi.com/rp2040/rp2040-datasheet.pdf)
-
+## Setup
+Clone in the [pcio-sdk](https://github.com/raspberrypi/pico-sdk) under the BDOS file.
 
 # SOFTWARE REQUIREMENTS
 
@@ -147,3 +126,26 @@ User-Level Applications/Programs (Stored aboard a μSD card, not in existance ye
 * Map*
 * Calendar
 * Password Protection
+
+
+# Resources
+
+<span style="text-decoration:underline;">OS Dev Wiki</span>
+
+[https://wiki.osdev.org/Main_Page](https://wiki.osdev.org/Main_Page)<span style="text-decoration:underline;"> </span>
+
+<span style="text-decoration:underline;">Piccolo OS:</span>
+
+[https://github.com/garyexplains/piccolo_os_v1](https://github.com/garyexplains/piccolo_os_v1) 
+
+<span style="text-decoration:underline;">Component Documentation Links</span>:
+
+[Motherboard (Raspberry Pi Pico) Documentation Directory](https://www.raspberrypi.com/documentation/microcontrollers/raspberry-pi-pico.html)
+
+[Motherboard (Raspberry Pi Pico) Development Kit](https://datasheets.raspberrypi.com/pico/raspberry-pi-pico-c-sdk.pdf) 
+
+[Motherboard (Raspberry Pi Pico) Datasheet](https://datasheets.raspberrypi.com/pico/pico-datasheet.pdf)
+
+[Processor (RP2040) Documentation Directory](https://www.raspberrypi.com/documentation/microcontrollers/rp2040.html#welcome-to-rp2040)
+
+[Processor (RP2040) Datasheet](https://datasheets.raspberrypi.com/rp2040/rp2040-datasheet.pdf)
