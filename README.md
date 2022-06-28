@@ -6,7 +6,7 @@ Currently a work in progress, open an issue to request a feature, and feel free 
 ## Setup
 Have cmake installed, navigate to 'build/' and run `cmake .. && make boot`
 
-The file should be generated in 'BDOS/build/src/os/boot.uf2'
+The file should be generated in 'BDOS/build/src/os/boot.uf2'.
 
 # SOFTWARE REQUIREMENTS
 
