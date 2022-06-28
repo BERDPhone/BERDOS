@@ -4,11 +4,7 @@ A mobile phone operating system built on top of the Raspberry Pi Pico.
 Currently a work in progress, open an issue to request a feature, and feel free to post a thread on discussions, to find other ways to help.
 
 ## Setup
-Have cmake and git installed
-Clone in the [pcio-sdk](https://github.com/raspberrypi/pico-sdk) under the BDOS file.
-
-Set the PICO_SDK_PATH variable for cmake
-export PICO_SDK_PATH=/Users/bjorn/Desktop/BDOS/pico-sdk
+Have cmake installed, navigate to build/ and run `cmake ..`
 
 # SOFTWARE REQUIREMENTS
 
