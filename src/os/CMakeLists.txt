@@ -1,9 +1,15 @@
+add_subdirectory(api/)
+add_subdirectory(drivers/)
+add_subdirectory(helpers/)
+add_subdirectory(kernal/)
+
 add_executable(boot
     boot.c
 )
 
 # Add pico_stdlib library which aggregates commonly used features
 target_link_libraries(boot pico_stdlib)
+target_link_libraries(boot kernal)
 
 # enable usb output, disable uart output
 pico_enable_stdio_usb(boot 1)

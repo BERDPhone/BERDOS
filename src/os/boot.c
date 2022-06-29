@@ -1,5 +1,6 @@
 /*
-Establish communcations with all devices/slaves, test whether connections work, and displays the status of the device depending on what devices are operational (via built in LED)
+Establish communcations with all devices/slaves, test whether connections work, and displays the status 
+of the device depending on what devices are operational (via built in LED)
 
 Solid green indicates all good
 Blinking green indicates a device is encountering issues
@@ -14,7 +15,7 @@ short short short 			– Cellular boot issue
 
 #include <stdio.h>
 #include "pico/stdlib.h"
-// #include "BDOS/src/kernal/kernal.h"
+#include "kernal/kernal.h"
 
 int main() {
 	
@@ -30,6 +31,8 @@ int main() {
 		sleep_ms(250);
 		gpio_put(LED_PIN, 0);
 		sleep_ms(250);
+
+		kernal();
 	}
 
 	
