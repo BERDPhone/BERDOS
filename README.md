@@ -4,7 +4,7 @@ A mobile phone operating system built on top of the Raspberry Pi Pico.
 Currently a work in progress, open an issue to request a feature, and feel free to post a thread on discussions, to find other ways to help.
 
 ## Setup
-Have cmake installed, navigate to 'build/' and run `cmake .. && make boot`
+Have cmake installed, navigate to 'build/' and run `cmake .. && make boot && cp ./src/os/boot.uf2 ../bin`
 
 The file should be generated in 'BDOS/build/src/os/boot.uf2'.
 
