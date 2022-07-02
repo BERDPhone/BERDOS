@@ -17,21 +17,7 @@ short short short 			– Microphone boot issue
 #include "pico/stdlib.h"
 #include "kernel/kernel.h"
 #include "malloc.h"
-
-
-
-
-
-// // just use link list for this data structure
-// __device_driver_status* __driver_initalize() {
-// 	// const int __number_of_drivers = 1;
-// 	*__device_driver_status __device_driver_array[1] = malloc(sizeof(__device_driver_status));
-
-// 	__device_driver_status[0].driver_name = "ILI9341.h";
-// 	__device_driver_status[0].is_operating = true;
-
-// 	return __device_driver_array;
-// }
+#include "boot.h"
 
 typedef struct {
 	char	*driver_name;
@@ -41,6 +27,7 @@ typedef struct {
 __device_driver_status *__driver_initalize();
 void __short_led(uint __led_pin);
 void __long_led(uint __led_pin);
+void signal_driver_status();
 
 int main() {
 	
@@ -49,44 +36,42 @@ int main() {
 	__device_driver_status *__device_drivers = __driver_initalize();
 
 	// kernel_initalize();
-
-
-
-	while (1) {
-		const uint __led_pin = PICO_DEFAULT_LED_PIN;
-		gpio_init(__led_pin);
-		gpio_set_dir(__led_pin, GPIO_OUT);
-
-		int i;
-		int len = sizeof(__device_driver_status)/sizeof(__device_drivers);
-
-		for (i = 0; i <= len; i++) {
-			if (__device_drivers[i].driver_name == "ILI9341_init.c" && __device_drivers[i].is_operating == false) {
-				gpio_put(__led_pin, 0);
-				sleep_ms(2000);
-				__short_led(__led_pin);
-				__short_led(__led_pin);
-			} else if (__device_drivers[i].driver_name == "ESP-12E_init.c" && __device_drivers[i].is_operating == false) {
-				gpio_put(__led_pin, 0);
-				sleep_ms(2000);
-				__short_led(__led_pin);
-				__long_led(__led_pin);
-
-			} else if (__device_drivers[i].driver_name == "MIC_init.c" && __device_drivers[i].is_operating == false) {
-				gpio_put(__led_pin, 0);
-				sleep_ms(2000);
-				__short_led(__led_pin);
-				__short_led(__led_pin);
-				__short_led(__led_pin);
-			} else {
-				gpio_put(__led_pin, 1);
-			}
-		}
-	}
-
 	
 	return 0;
 }
+
+void signal_driver_status() {
+	const uint __led_pin = PICO_DEFAULT_LED_PIN;
+	gpio_init(__led_pin);
+	gpio_set_dir(__led_pin, GPIO_OUT);
+
+	int i;
+	int len = sizeof(__device_driver_status)/sizeof(__device_drivers);
+
+	for (i = 0; i <= len; i++) {
+		if (__device_drivers[i].driver_name == "ILI9341_init.c" && __device_drivers[i].is_operating == false) {
+			gpio_put(__led_pin, 0);
+			sleep_ms(2000);
+			__short_led(__led_pin);
+			__short_led(__led_pin);
+		} else if (__device_drivers[i].driver_name == "ESP-12E_init.c" && __device_drivers[i].is_operating == false) {
+			gpio_put(__led_pin, 0);
+			sleep_ms(2000);
+			__short_led(__led_pin);
+			__long_led(__led_pin);
+
+		} else if (__device_drivers[i].driver_name == "MIC_init.c" && __device_drivers[i].is_operating == false) {
+			gpio_put(__led_pin, 0);
+			sleep_ms(2000);
+			__short_led(__led_pin);
+			__short_led(__led_pin);
+			__short_led(__led_pin);
+		} else {
+			gpio_put(__led_pin, 1);
+		}
+	}
+}
+
 
 void __short_led(uint __led_pin) {
 	gpio_put(__led_pin, 1);
@@ -119,3 +104,4 @@ __device_driver_status *__driver_initalize() {
 
 	return __device_drivers;
 }
+

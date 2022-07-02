@@ -17,6 +17,7 @@ i.e. prevent crashing of entire system from process accessing wrong memory or nu
 #include "pico/stdlib.h"
 #include <stdio.h>
 #include "kernel.h"
+#include "boot.h"
 
 unsigned int *__piccolo_os_create_task(unsigned int *stack,
 									   void (*start)(void));
