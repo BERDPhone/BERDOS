@@ -10,7 +10,7 @@ With a longer pause between the series of blinks.
 
 short short 				– screen boot issue
 short long 					– WiFi boot issue
-short short short 			– Cellular boot issue
+short short short 			– Microphone boot issue
 */
 
 #include <stdio.h>
@@ -38,8 +38,69 @@ typedef struct {
 	bool	is_operating;
 } __device_driver_status;
 
+__device_driver_status *__driver_initalize();
+void __short_led(uint __led_pin);
+void __long_led(uint __led_pin);
 
-// __device_driver_status *fun(int k);
+int main() {
+	
+	stdio_init_all();
+
+	__device_driver_status *__device_drivers = __driver_initalize();
+
+	// kernel_initalize();
+
+
+
+	while (1) {
+		const uint __led_pin = PICO_DEFAULT_LED_PIN;
+		gpio_init(__led_pin);
+		gpio_set_dir(__led_pin, GPIO_OUT);
+
+		int i;
+		int len = sizeof(__device_driver_status)/sizeof(__device_drivers);
+
+		for (i = 0; i <= len; i++) {
+			if (__device_drivers[i].driver_name == "ILI9341_init.c" && __device_drivers[i].is_operating == false) {
+				gpio_put(__led_pin, 0);
+				sleep_ms(2000);
+				__short_led(__led_pin);
+				__short_led(__led_pin);
+			} else if (__device_drivers[i].driver_name == "ESP-12E_init.c" && __device_drivers[i].is_operating == false) {
+				gpio_put(__led_pin, 0);
+				sleep_ms(2000);
+				__short_led(__led_pin);
+				__long_led(__led_pin);
+
+			} else if (__device_drivers[i].driver_name == "MIC_init.c" && __device_drivers[i].is_operating == false) {
+				gpio_put(__led_pin, 0);
+				sleep_ms(2000);
+				__short_led(__led_pin);
+				__short_led(__led_pin);
+				__short_led(__led_pin);
+			} else {
+				gpio_put(__led_pin, 1);
+			}
+		}
+	}
+
+	
+	return 0;
+}
+
+void __short_led(uint __led_pin) {
+	gpio_put(__led_pin, 1);
+	sleep_ms(300);
+	gpio_put(__led_pin, 0);
+	sleep_ms(100);
+}
+
+void __long_led(uint __led_pin) {
+	gpio_put(__led_pin, 1);
+	sleep_ms(600);
+	gpio_put(__led_pin, 0);
+	sleep_ms(100);
+}
 
 
 __device_driver_status *__driver_initalize() {
@@ -51,48 +112,10 @@ __device_driver_status *__driver_initalize() {
 	__device_drivers[0].is_operating = true;
 
 	__device_drivers[1].driver_name = "ESP-12E_init.c";
-	__device_drivers[1].is_operating = true;
+	__device_drivers[1].is_operating = false;
 
 	__device_drivers[2].driver_name = "MIC_init.c";
 	__device_drivers[2].is_operating = true;
 
 	return __device_drivers;
-}
-
-int main() {
-	
-	stdio_init_all();
-
-	__device_driver_status *__device_drivers = __driver_initalize();
-
-	
-
-	// kernel_initalize();
-
-
-
-	while (1) {
-		int i;
-		int len = sizeof(__device_driver_status)/sizeof(__device_drivers);
-
-		for (i = 0; i <= len; i++) {
-			printf("\n\n=======================\n");
-			printf("i: %i\n", i);
-			printf("len: %i\n", len);
-			printf("driver_name: %s, \n", __device_drivers[i].driver_name);
-			printf("is_operating: %s\n", __device_drivers[i].is_operating ? "true" : "false");
-			printf("=======================\n\n");
-		}
-
-		sleep_ms(1000);
-
-		const uint LED_PIN = PICO_DEFAULT_LED_PIN;
-		gpio_init(LED_PIN);
-		gpio_set_dir(LED_PIN, GPIO_OUT);
-
-		gpio_put(LED_PIN, 1);
-	}
-
-	
-	return 0;
 }
