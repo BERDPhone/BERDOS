@@ -8,7 +8,7 @@ add_executable(boot
 )
 
 # Add pico_stdlib library which aggregates commonly used features
-target_link_libraries(boot pico_stdlib)
+target_link_libraries(boot pico_stdlib pico_malloc)
 target_link_libraries(boot kernel)
 
 # enable usb output, disable uart output
