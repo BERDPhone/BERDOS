@@ -12,7 +12,8 @@ set(PICO_SDK_FETCH_FROM_GIT on)
 # note: this must happen before project()
 include(pico_sdk_import.cmake)
 
-project(${NAME})
+project(${NAME}
+	LANGUAGES C CXX ASM)
 
 # initialize the Raspberry Pi Pico SDK
 pico_sdk_init()
@@ -21,6 +22,7 @@ pico_sdk_init()
 
 # Add hello world example
 add_subdirectory(src)
+add_subdirectory(practice)
 
 add_compile_options(-Wall
 -Wno-format          # int != int32_t as far as the compiler is concerned because gcc has int32_t as long int
