@@ -28,3 +28,7 @@ void kernel_create_process(void (*pointer_to_task_function)(void)) {
 		pointer_to_task_function();
 	}
 }
+
+void kernel_kill_process(void (*pointer_to_task_function)(void)) {
+	
+}
