@@ -17,7 +17,6 @@ short short short 			– Microphone boot issue
 #include "pico/stdlib.h"
 #include "kernel/kernel.h"
 #include "malloc.h"
-#include "boot.h"
 
 typedef struct {
 	char	*driver_name;
@@ -27,7 +26,7 @@ typedef struct {
 __device_driver_status *__driver_initalize();
 void __short_led(uint __led_pin);
 void __long_led(uint __led_pin);
-void signal_driver_status();
+void signal_driver_status(__device_driver_status *__device_drivers);
 
 int main() {
 	
@@ -36,11 +35,18 @@ int main() {
 	__device_driver_status *__device_drivers = __driver_initalize();
 
 	// kernel_initalize();
+
+
+
+	while (1) {
+		signal_driver_status(__device_drivers);
+	}
+
 	
 	return 0;
 }
 
-void signal_driver_status() {
+void signal_driver_status(__device_driver_status *__device_drivers) {
 	const uint __led_pin = PICO_DEFAULT_LED_PIN;
 	gpio_init(__led_pin);
 	gpio_set_dir(__led_pin, GPIO_OUT);
@@ -72,7 +78,6 @@ void signal_driver_status() {
 	}
 }
 
-
 void __short_led(uint __led_pin) {
 	gpio_put(__led_pin, 1);
 	sleep_ms(300);
@@ -97,11 +102,10 @@ __device_driver_status *__driver_initalize() {
 	__device_drivers[0].is_operating = true;
 
 	__device_drivers[1].driver_name = "ESP-12E_init.c";
-	__device_drivers[1].is_operating = false;
+	__device_drivers[1].is_operating = true;
 
 	__device_drivers[2].driver_name = "MIC_init.c";
-	__device_drivers[2].is_operating = true;
+	__device_drivers[2].is_operating = false;
 
 	return __device_drivers;
 }
-
