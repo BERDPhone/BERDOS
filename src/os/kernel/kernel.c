@@ -13,13 +13,13 @@ i.e. prevent crashing of entire system from process accessing wrong memory or nu
 typedef struct __task {
 	void 			(*function_pointer)(void);
 	int 			priority;
-	uint8_t			process_id;
+	uint			process_id;
 	struct __task*	next;
 } __task;
 
 __task* __head = NULL;
 
-uint8_t __task_list_size;
+uint process_id = 0;
 
 void kernel_initalize() {
 	// stdio_init_all();
@@ -35,14 +35,15 @@ void kernel_start() {
 }
 
 // returns task id.
-uint8_t kernel_create_process(void (*pointer_to_task_function)(void), int priority) {
+uint kernel_create_process(void (*pointer_to_task_function)(void), int priority) {
 	printf("Kernel: Creating a kernel process.\n");
+
 
 	//create a new node
 	__task *new_node = malloc(sizeof(__task));
 	new_node->function_pointer = pointer_to_task_function;
 	new_node->priority = priority;
-	new_node->process_id = 0;
+	new_node->process_id = process_id;
 	new_node->next = NULL;
 
 	//if head is NULL, it is an empty list
@@ -60,6 +61,10 @@ uint8_t kernel_create_process(void (*pointer_to_task_function)(void), int priori
 		//add the new_node at the end of the linked list
 		last_node->next = new_node;
 	}
+
+	process_id += 1;
+
+	return process_id;
 	
 }
 
@@ -86,6 +91,6 @@ bool kernel_kill_process_by_pointer(void (*pointer_to_task_function)(void)) {
 	return true;
 }
 
-bool kernel_kill_process_by_id(uint8_t task_id) {
+bool kernel_kill_process_by_id(uint task_id) {
 	return true;
 }
