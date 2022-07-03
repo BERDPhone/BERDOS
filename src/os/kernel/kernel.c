@@ -8,16 +8,23 @@ i.e. prevent crashing of entire system from process accessing wrong memory or nu
 #include "kernel.h"
 
 void kernel_initalize() {
-	printf("Kernal being initaized.\n");
+	stdio_init_all();
+	printf("Kernel: Kernal being initaized.\n");
 }
 
 void kernel_start() {
-	printf("Kernal starting.\n");
+	stdio_init_all();
+	printf("Kernel: Kernal starting.\n");
 	while (1) {
 	    // statement
 	}
 }
 
 void kernel_create_process(void (*pointer_to_task_function)(void)) {
-	printf("Creating a kernel process.\n");
+	// stdio_init_all();
+	printf("Kernel: Creating a kernel process.\n");
+
+	while (1) {
+		pointer_to_task_function();
+	}
 }

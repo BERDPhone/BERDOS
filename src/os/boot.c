@@ -8,9 +8,9 @@ Blinking green indicates a device is encountering issues
 In order to determine which devices are malfunctioning, the LED should blink like so...
 With a longer pause between the series of blinks.
 
-short short 				– screen boot issue
-short long 					– WiFi boot issue
-short short short 			– Microphone boot issue
+short short 				- screen boot issue
+short long 					- WiFi boot issue
+short short short 			- Microphone boot issue
 */
 
 #include <stdio.h>
@@ -23,30 +23,40 @@ typedef struct {
 	bool	is_operating;
 } __device_driver_status;
 
+__device_driver_status *__device_drivers;
 __device_driver_status *__driver_initalize();
 void __short_led(uint __led_pin);
 void __long_led(uint __led_pin);
-void signal_driver_status(__device_driver_status *__device_drivers);
+void signal_driver_status(void);
 
 int main() {
-	
 	stdio_init_all();
 
-	__device_driver_status *__device_drivers = __driver_initalize();
+	sleep_ms(3000);
 
-	// kernel_initalize();
-
-
-
-	while (1) {
-		signal_driver_status(__device_drivers);
-	}
-
+	printf("\n\n\n\nBoot: Initalizing the drivers.\n");
+	__device_drivers = __driver_initalize();
+	printf("Boot: Initalized all the drivers.\n");
 	
+	printf("Boot: Initalizing the kernel\n");
+	kernel_initalize();
+	printf("Boot: Finished initaizing the kernel.\n");
+
+	// Have to pass the function pointer.
+	printf("Boot: Creating signal_driver_status process\n");
+	kernel_create_process(&signal_driver_status);
+	printf("Boot: Finished creating signal_driver_status process\n");
+
+	printf("Boot: Starting the kernel\n");
+	kernel_start();
+	printf("Boot: Finished starting the kernel\n");
+
+	// This should never be reached.
 	return 0;
 }
 
-void signal_driver_status(__device_driver_status *__device_drivers) {
+void signal_driver_status() {
+	printf("Boot: Inside signal_driver_status.\n");
 	const uint __led_pin = PICO_DEFAULT_LED_PIN;
 	gpio_init(__led_pin);
 	gpio_set_dir(__led_pin, GPIO_OUT);
@@ -105,7 +115,7 @@ __device_driver_status *__driver_initalize() {
 	__device_drivers[1].is_operating = true;
 
 	__device_drivers[2].driver_name = "MIC_init.c";
-	__device_drivers[2].is_operating = false;
+	__device_drivers[2].is_operating = true;
 
 	return __device_drivers;
 }
