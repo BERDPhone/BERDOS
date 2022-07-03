@@ -28,6 +28,7 @@ __device_driver_status *__driver_initalize();
 void __short_led(uint __led_pin);
 void __long_led(uint __led_pin);
 void signal_driver_status(void);
+void hello_world(void);
 
 int main() {
 	stdio_init_all();
@@ -44,8 +45,15 @@ int main() {
 
 	// Have to pass the function pointer.
 	printf("Boot: Creating signal_driver_status process\n");
-	kernel_create_process(&signal_driver_status);
+	kernel_create_process(&signal_driver_status, 1);
+	kernel_create_process(&hello_world, 10);
+	kernel_create_process(&hello_world, 20);
+	kernel_create_process(&hello_world, 30);
 	printf("Boot: Finished creating signal_driver_status process\n");
+
+	printf("Boot: Calling list_all_tasks\n");
+	list_all_tasks();
+	printf("Boot: Called list_all_tasks\n");
 
 	printf("Boot: Starting the kernel\n");
 	kernel_start();
@@ -53,6 +61,10 @@ int main() {
 
 	// This should never be reached.
 	return 0;
+}
+
+void hello_world() {
+	printf("hello_world");
 }
 
 void signal_driver_status() {
@@ -104,7 +116,7 @@ void __long_led(uint __led_pin) {
 
 
 __device_driver_status *__driver_initalize() {
-	const int __number_of_drivers = 3;
+	const uint __number_of_drivers = 3;
 
 	__device_driver_status *__device_drivers = malloc(sizeof(__device_driver_status) * __number_of_drivers);
 
