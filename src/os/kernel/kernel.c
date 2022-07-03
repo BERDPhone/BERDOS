@@ -69,7 +69,15 @@ void list_all_tasks() {
 	/* Print all the elements in the linked list */
 	__task *current_node = __head;
 	while ( current_node != NULL) {
-		printf("priority: %i \n", current_node->priority);
+		printf("Function pointer: ");
+		unsigned char *cp = (unsigned char*)&current_node->function_pointer;
+		for (int i=0;i<sizeof current_node->function_pointer; i++) {
+			printf("[%08x]", cp[i]);
+		}
+		printf("\n");
+
+		printf("Priority: %i \n", current_node->priority);
+		printf("Process id: %i \n", current_node->process_id);
 		current_node = current_node->next;
 	}
 }
