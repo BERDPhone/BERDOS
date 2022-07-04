@@ -45,19 +45,25 @@ int main() {
 
 	// Have to pass the function pointer.
 	printf("Boot: Creating signal_driver_status process\n");
-	kernel_create_process(&signal_driver_status, 1);
-	kernel_create_process(&hello_world, 10);
-	// kernel_create_process(&hello_world, 20);
-	// kernel_create_process(&hello_world, 30);
+	int signal_task = kernel_create_process(&signal_driver_status, 1);
+	int hello_world_task = kernel_create_process(&hello_world, 10);
+	int hello_world_task2 = kernel_create_process(&hello_world, 20);
+	int hello_world_task3 = kernel_create_process(&hello_world, 30);
 	printf("Boot: Finished creating signal_driver_status process\n");
 
 	printf("Boot: Calling list_all_tasks\n");
 	list_all_tasks();
 	printf("Boot: Called list_all_tasks\n");
 
-	printf("Boot: Starting the kernel\n");
-	kernel_start();
-	printf("Boot: Finished starting the kernel\n");
+	kernel_kill_process_by_id(hello_world_task);
+	
+	printf("Boot: Calling list_all_tasks\n");
+	list_all_tasks();
+	printf("Boot: Called list_all_tasks\n");
+
+	// printf("Boot: Starting the kernel\n");
+	// kernel_start();
+	// printf("Boot: Finished starting the kernel\n");
 
 	// This should never be reached.
 	return 0;

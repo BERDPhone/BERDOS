@@ -92,10 +92,29 @@ void list_all_tasks() {
 }
 
 bool kernel_kill_process_by_pointer(void (*pointer_to_task_function)(void)) {
-	return true;
+	__task *current_node = __head;
+	while ( current_node != NULL && current_node->next != NULL) {
+		if (pointer_to_task_function == current_node->next->function_pointer) {
+			current_node->next = current_node->next->next;
+			return true;
+		}
+
+		current_node = current_node->next;
+	}
+
+	return false;
 }
 
 bool kernel_kill_process_by_id(uint task_id) {
+	__task *current_node = __head;
+	while ( current_node != NULL && current_node->next != NULL) {
+		if (task_id == current_node->next->process_id) {
+			current_node->next = current_node->next->next;
+			return true;
+		}
 
-	return true;
+		current_node = current_node->next;
+	}
+
+	return false;
 }
