@@ -47,8 +47,8 @@ int main() {
 	printf("Boot: Creating signal_driver_status process\n");
 	kernel_create_process(&signal_driver_status, 1);
 	kernel_create_process(&hello_world, 10);
-	kernel_create_process(&hello_world, 20);
-	kernel_create_process(&hello_world, 30);
+	// kernel_create_process(&hello_world, 20);
+	// kernel_create_process(&hello_world, 30);
 	printf("Boot: Finished creating signal_driver_status process\n");
 
 	printf("Boot: Calling list_all_tasks\n");
@@ -64,11 +64,11 @@ int main() {
 }
 
 void hello_world() {
-	printf("hello_world");
+	printf("hello_world\n");
 }
 
 void signal_driver_status() {
-	printf("Boot: Inside signal_driver_status.\n");
+	printf("signal_driver_status.\n");
 	const uint __led_pin = PICO_DEFAULT_LED_PIN;
 	gpio_init(__led_pin);
 	gpio_set_dir(__led_pin, GPIO_OUT);
@@ -124,7 +124,7 @@ __device_driver_status *__driver_initalize() {
 	__device_drivers[0].is_operating = true;
 
 	__device_drivers[1].driver_name = "ESP-12E_init.c";
-	__device_drivers[1].is_operating = true;
+	__device_drivers[1].is_operating = false;
 
 	__device_drivers[2].driver_name = "MIC_init.c";
 	__device_drivers[2].is_operating = true;

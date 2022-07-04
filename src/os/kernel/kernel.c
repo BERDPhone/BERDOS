@@ -30,7 +30,11 @@ void kernel_start() {
 	// stdio_init_all();
 	printf("Kernel: Kernal starting.\n");
 	while (1) {
-		// statement
+		__task *current_node = __head;
+		while ( current_node != NULL) {
+			current_node->function_pointer();
+			current_node = current_node->next;
+		}
 	}
 }
 
@@ -92,5 +96,6 @@ bool kernel_kill_process_by_pointer(void (*pointer_to_task_function)(void)) {
 }
 
 bool kernel_kill_process_by_id(uint task_id) {
+
 	return true;
 }
