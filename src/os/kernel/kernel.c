@@ -95,6 +95,7 @@ bool kernel_kill_process_by_pointer(void (*pointer_to_task_function)(void)) {
 	__task *current_node = __head;
 	while ( current_node != NULL && current_node->next != NULL) {
 		if (pointer_to_task_function == current_node->next->function_pointer) {
+			free(current_node->next);
 			current_node->next = current_node->next->next;
 			return true;
 		}
@@ -109,6 +110,7 @@ bool kernel_kill_process_by_id(uint task_id) {
 	__task *current_node = __head;
 	while ( current_node != NULL && current_node->next != NULL) {
 		if (task_id == current_node->next->process_id) {
+			free(current_node->next);
 			current_node->next = current_node->next->next;
 			return true;
 		}
