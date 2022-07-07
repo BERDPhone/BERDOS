@@ -77,6 +77,8 @@ uint kernel_create_process(void (*pointer_to_task_function)(void), int priority)
 
 	return process_id
 
+}
+
 void list_all_tasks() {
 	printf("Within list_all_tasks \n");
 
