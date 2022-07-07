@@ -15,30 +15,11 @@ i.e. prevent crashing of entire system from process accessing wrong memory or nu
 |	head | next	  | ->  | new node | next | -> | new node | next | -> NULL
 |-----------------|     |-----------------|    |-----------------|
 
-var head = {
-	function_pointer: 	*hello_world,
-	priority:			10
-	process_id:			1
-	next: 				obj2
-}
-
-var obj2 = {
-	function_pointer: 	*hello_world,
-	priority:			10
-	process_id:			2
-	next: 				obj3
-}
-
-var obj3 = {
-	function_pointer: 	*signal_status,
-	priority:			10
-	process_id:			3
-	next: 				NULL
-}
-
 kernel_create_process() replaces the NULL with the an additional object.
 */
 
+/* This code initializes the "__task" structure whose instances represent nodes of a linked list and a
+process executed in the central processing unit (CPU). */
 typedef struct __task {
 	void 			(*function_pointer)(void);
 	int 			priority;
@@ -47,7 +28,6 @@ typedef struct __task {
 } __task;
 
 __task* __head = NULL;
-
 uint process_id = 0;
 
 void kernel_initalize() {
@@ -67,39 +47,35 @@ void kernel_start() {
 	}
 }
 
-// returns task id.
+/* "kernel_create_process()" replaces the NULL node with an additional node in the "__task" linked list. 
+The function returns the unsigned "process_id" integer of the created process. Each node represents a 
+process. */
 uint kernel_create_process(void (*pointer_to_task_function)(void), int priority) {
 	printf("Kernel: Creating a kernel process.\n");
 
-
-	//create a new node
+	/* The following five lines of code create a new node in the "__task" linked list, assign sufficent 
+	memmory, and define the variables of the "__task" linked list/structure. */
 	__task *new_node = malloc(sizeof(__task));
 	new_node->function_pointer = pointer_to_task_function;
 	new_node->priority = priority;
 	new_node->process_id = process_id;
 	new_node->next = NULL;
 
-	//if head is NULL, it is an empty list
-	//Otherwise, find the last node and add the new_node
-	if(__head == NULL) {
-		__head = new_node;
-	} else {
+	/* If the "__head" instance of the "__task" linked list/structure equals NULL, the linked list contains 
+	no processes or nodes, and the "new_node" structure redefines the "__head" structure. Otherwise, the 
+	code locates the last node in the linked list/structure and adds the "new_node" strucutre on the end. */
+	if(__head != NULL) {
 		__task *last_node = __head;
-
-		//last node's next address will be NULL.
 		while(last_node->next != NULL) {
 			last_node = last_node->next;
 		}
-
-		//add the new_node at the end of the linked list
 		last_node->next = new_node;
+	} else {
+		__head = new_node;
 	}
-
 	process_id += 1;
 
-	return process_id;
-	
-}
+	return process_id
 
 void list_all_tasks() {
 	printf("Within list_all_tasks \n");
@@ -137,6 +113,8 @@ bool kernel_kill_process_by_pointer(void (*pointer_to_task_function)(void)) {
 	return false;
 }
 
+/* The "kernel_kill_process_by_id()" function removes the 
+*/
 bool kernel_kill_process_by_id(uint task_id) {
 	__task *current_node = __head;
 	while ( current_node != NULL && current_node->next != NULL) {
