@@ -49,6 +49,7 @@ int main() {
 	int hello_world_task = kernel_create_process(&hello_world, 10);
 	int hello_world_task2 = kernel_create_process(&hello_world, 20);
 	int hello_world_task3 = kernel_create_process(&hello_world, 30);
+
 	printf("Boot: Finished creating signal_driver_status process\n");
 
 	printf("Boot: Calling list_all_tasks\n");
@@ -61,9 +62,9 @@ int main() {
 	list_all_tasks();
 	printf("Boot: Called list_all_tasks\n");
 
-	// printf("Boot: Starting the kernel\n");
-	// kernel_start();
-	// printf("Boot: Finished starting the kernel\n");
+	printf("Boot: Starting the kernel\n");
+	kernel_start();
+	printf("Boot: Finished starting the kernel\n");
 
 	// This should never be reached.
 	return 0;

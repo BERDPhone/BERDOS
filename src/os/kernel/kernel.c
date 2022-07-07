@@ -10,6 +10,35 @@ i.e. prevent crashing of entire system from process accessing wrong memory or nu
 #include <string.h>
 
 // Creation of linked list
+/*
+|-----------------|     |-----------------|    |-----------------|
+|	head | next	  | ->  | new node | next | -> | new node | next | -> NULL
+|-----------------|     |-----------------|    |-----------------|
+
+var head = {
+	function_pointer: 	*hello_world,
+	priority:			10
+	process_id:			1
+	next: 				obj2
+}
+
+var obj2 = {
+	function_pointer: 	*hello_world,
+	priority:			10
+	process_id:			2
+	next: 				obj3
+}
+
+var obj3 = {
+	function_pointer: 	*signal_status,
+	priority:			10
+	process_id:			3
+	next: 				NULL
+}
+
+kernel_create_process() replaces the NULL with the an additional object.
+*/
+
 typedef struct __task {
 	void 			(*function_pointer)(void);
 	int 			priority;
@@ -23,7 +52,7 @@ uint process_id = 0;
 
 void kernel_initalize() {
 	// stdio_init_all();
-	printf("Kernel: Kernal being initaized.\n");
+	printf("Kernel: Kernal initaizing.\n");
 }
 
 void kernel_start() {
@@ -93,10 +122,12 @@ void list_all_tasks() {
 
 bool kernel_kill_process_by_pointer(void (*pointer_to_task_function)(void)) {
 	__task *current_node = __head;
+
 	while ( current_node != NULL && current_node->next != NULL) {
 		if (pointer_to_task_function == current_node->next->function_pointer) {
+			__task *new_next = current_node->next->next;
 			free(current_node->next);
-			current_node->next = current_node->next->next;
+			current_node->next = new_next;
 			return true;
 		}
 
@@ -110,8 +141,9 @@ bool kernel_kill_process_by_id(uint task_id) {
 	__task *current_node = __head;
 	while ( current_node != NULL && current_node->next != NULL) {
 		if (task_id == current_node->next->process_id) {
+			__task *new_next = current_node->next->next;
 			free(current_node->next);
-			current_node->next = current_node->next->next;
+			current_node->next = new_next;
 			return true;
 		}
 
