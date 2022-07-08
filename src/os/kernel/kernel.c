@@ -27,6 +27,8 @@ typedef struct __task {
 	struct __task*	next;
 } __task;
 
+/* The following two lines of code initialize the "__task" linked list/structure with the "__head" 
+instance. */
 __task* __head = NULL;
 uint process_id = 0;
 
@@ -56,7 +58,7 @@ uint kernel_create_process(void (*pointer_to_task_function)(void), int priority)
 	/* The following five lines of code create a new node in the "__task" linked list, assign sufficent 
 	memmory, and define the variables of the "__task" linked list/structure. */
 	__task *new_node = malloc(sizeof(__task));
-	new_node->function_pointer = pointer_to_task_function;
+	new_node->function_pointer() = pointer_to_task_function;
 	new_node->priority = priority;
 	new_node->process_id = process_id;
 	new_node->next = NULL;
@@ -75,7 +77,7 @@ uint kernel_create_process(void (*pointer_to_task_function)(void), int priority)
 	}
 	process_id += 1;
 
-	return process_id
+	return process_id;
 
 }
 
