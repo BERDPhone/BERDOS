@@ -11,6 +11,8 @@ Have cmake installed, navigate to 'build/' and run `cmake .. && make boot && cp 
 
 The file should be generated in 'BDOS/build/src/os/boot.uf2'.
 
+UART is the only method of getting output from the PICO. the Pico SDK loads on some code when using the stdio usb output, and as such the operating system will not work with it enabled.
+
 # SOFTWARE REQUIREMENTS
 
 
