@@ -87,6 +87,12 @@ uint kernel_create_process(void (*pointer_to_task_function)(void), int necessity
 	new_node->status = READY;
 	new_node->next = NULL;
 
+	tack_words += new_node.stack_size - 17;
+	stack_words[8] = 0xFFFFFFFD; // EXC_RETURN in LR
+	stack_words[15] = process_pointer; // Process Pointer in PC
+	stack_words[16] = 0x01000000; // Thumb Bit in EPSR
+	stack_words = __initialize_context_switch();
+
 	/* If the "__head" instance of the "process" linked list/structure equals NULL, the linked list contains 
 	no processes or nodes, and the "new_node" structure redefines the "__head" structure. Otherwise, the 
 	code locates the last node in the linked list/structure and adds the "new_node" strucutre on the end. */
