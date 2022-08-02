@@ -7,6 +7,11 @@ i.e. prevent crashing of entire system from process accessing wrong memory or nu
 #include "malloc.h"
 #include <string.h>
 
+
+unsigned int *__initialize_context_switch(unsigned int *stack) {
+	return 0;
+}
+
 process* __head = NULL;
 uint process_count = 0;
 
@@ -87,11 +92,11 @@ uint kernel_create_process(void (*pointer_to_task_function)(void), int necessity
 	new_node->status = READY;
 	new_node->next = NULL;
 
-	tack_words += new_node.stack_size - 17;
-	stack_words[8] = 0xFFFFFFFD; // EXC_RETURN in LR
-	stack_words[15] = process_pointer; // Process Pointer in PC
-	stack_words[16] = 0x01000000; // Thumb Bit in EPSR
-	stack_words = __initialize_context_switch();
+	new_node->stack_words += BDOS_STACK_SIZE - 17;
+	new_node->stack_words[8] = 0xFFFFFFFD; // EXC_RETURN in LR
+	new_node->stack_words[15] = (unsigned int) pointer_to_task_function; // Process Pointer in PC
+	new_node->stack_words[16] = 0x01000000; // Thumb Bit in EPSR
+	new_node->stack_words = __initialize_context_switch(new_node->stack_words);
 
 	/* If the "__head" instance of the "process" linked list/structure equals NULL, the linked list contains 
 	no processes or nodes, and the "new_node" structure redefines the "__head" structure. Otherwise, the 

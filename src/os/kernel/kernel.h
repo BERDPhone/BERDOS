@@ -1,5 +1,6 @@
 #ifndef KERNEL_H
 #define KERNEL_H
+#define BDOS_STACK_SIZE 256
 
 typedef enum status {
 	TERMINATED,
@@ -21,6 +22,7 @@ typedef struct process {
 	uint				identification;
 	enum 	status		status;
 	struct 	process* 	next;
+	int 				*stack_words;
 } process;
 
 void kernel_initalize();
