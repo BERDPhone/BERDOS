@@ -18,11 +18,12 @@ typedef enum mode {
 process executed in the central processing unit (CPU). */
 typedef struct process {
 	void 				(*function_pointer)(void);
-	double 	            priority;
+	double 				priority;
 	uint				identification;
 	enum 	status		status;
 	struct 	process* 	next;
 	int 				*stack_words;
+	uint 				stack_size;
 } process;
 
 void kernel_initalize();

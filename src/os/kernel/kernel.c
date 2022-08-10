@@ -7,11 +7,6 @@ i.e. prevent crashing of entire system from process accessing wrong memory or nu
 #include "malloc.h"
 #include <string.h>
 
-
-unsigned int *__initialize_context_switch(unsigned int *stack) {
-	return 0;
-}
-
 process* __head = NULL;
 uint process_count = 0;
 
@@ -21,6 +16,7 @@ uint __priority_scheduler(void);
 void kernel_initalize() {
 	// stdio_init_all();
 	printf("Kernel: Kernal initaizing.\n");
+	__systick_initialize();
 }
 
 // void kernel_start() {
@@ -69,10 +65,6 @@ double __compute_priority(uint current_node_id) {
 	for (uint i = 0; i < process_count; i++) {
 		double current_node_prioirty;
 	}
-
-
-
-
 }
 
 /* "kernel_create_process()" replaces the NULL node with an additional node in the "process" linked list. 
@@ -83,6 +75,7 @@ uint kernel_create_process(void (*pointer_to_task_function)(void), int necessity
 
 	uint new_id = __compute_id();
 	uint new_priority = __compute_priority(new_id);
+	
 	/* The following five lines of code create a new node in the "process" linked list, assign sufficent 
 	memmory, and define the variables of the "process" linked list/structure. */
 	process *new_node = malloc(sizeof(process));
@@ -93,10 +86,10 @@ uint kernel_create_process(void (*pointer_to_task_function)(void), int necessity
 	new_node->next = NULL;
 
 	new_node->stack_words += BDOS_STACK_SIZE - 17;
-	new_node->stack_words[8] = 0xFFFFFFFD; // EXC_RETURN in LR
+	new_node->stack_words[8] = (unsigned int) 0xFFFFFFFD; // EXC_RETURN in LR
 	new_node->stack_words[15] = (unsigned int) pointer_to_task_function; // Process Pointer in PC
-	new_node->stack_words[16] = 0x01000000; // Thumb Bit in EPSR
-	new_node->stack_words = __initialize_context_switch(new_node->stack_words);
+	new_node->stack_words[16] = (unsigned int) 0x01000000; // Thumb Bit in EPSR
+	new_node->stack_words = __piccolo_pre_switch(new_node->stack_words);
 
 	/* If the "__head" instance of the "process" linked list/structure equals NULL, the linked list contains 
 	no processes or nodes, and the "new_node" structure redefines the "__head" structure. Otherwise, the 

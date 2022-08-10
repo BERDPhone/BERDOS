@@ -33,7 +33,7 @@ isr_svcall:
 	mov	r6, r10
 	mov	r7, r11
 	subs r0, #32
-	stmia r0!, {r4,r5, r6, r7}
+	stmia r0!, {r4, r5, r6, r7}
 	subs r0, #16 /* fix r0 to point to end of stack frame, 36 bytes from original r0 */
 
 	/* load kernel state from stack*/
