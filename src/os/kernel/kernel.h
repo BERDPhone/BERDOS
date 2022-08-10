@@ -27,7 +27,7 @@ void kernel_initalize();
 
 void kernel_start();
 
-void round_robin_scheduler(void)
+void round_robin_scheduler(void);
 
 uint kernel_create_process(void (*pointer_to_task_function)(void));
 

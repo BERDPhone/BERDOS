@@ -9,7 +9,7 @@ interactions and (2) controls all hardware */
 #include <string.h>
 
 
-unsigned int *__initialize_context_switch(unsigned int *stack) {
+unsigned int *__initialize_context_switch(void (*pointer_to_task_function)(void)) {
 	return 0;
 }
 
@@ -24,7 +24,7 @@ void kernel_start() {
 	__round_robin_scheduler();
 }
 
-void round_robin_scheduler(void) {
+void __round_robin_scheduler(void) {
 	while (true) {
  		process *current_node = __head;
  		while (current_node != NULL) {
@@ -40,15 +40,14 @@ uint kernel_create_process(void (*pointer_to_process)(void)) {
 
 	process *new_node = malloc(sizeof(process));
 	new_node->function_pointer = pointer_to_process;
-	new_node->prioirty = new_priority;
+	new_node->priority = new_priority;
 	new_node->identification = new_identification;
 	new_node->status = READY;
-	process *next_node = get_process_by_id(new_identification++);
-	new_node->next = next_node->function_pointer;
+	new_node->next = NULL;
 
 	new_node->stack_words += BDOS_STACK_SIZE - 17;
 	new_node->stack_words[8] = 0xFFFFFFFD; // EXC_RETURN in LR
-	new_node->stack_words[15] = (unsigned int) pointer_to_task_function; // Process Pointer in PC
+	new_node->stack_words[15] = (unsigned int) pointer_to_process; // Process Pointer in PC
 	new_node->stack_words[16] = 0x01000000; // Thumb Bit in EPSR
 	new_node->stack_words = __initialize_context_switch(new_node->stack_words);
 }
@@ -57,7 +56,7 @@ void kernel_execute_process(uint node_identification) {
 	process *current_node = get_process_by_id(node_identification);
 	current_node->status = RUNNING;
 
-	current_node->function_pointer() = __initialize_context_switch(current_node->function_pointer());
+	__initialize_context_switch(current_node->function_pointer);
 }
 
 void kernel_hault_process(uint node_identification) {
@@ -79,7 +78,7 @@ bool kernel_terminate_process_by_id(uint node_identification) {
 	process *current_node = __head;
 
 	while (current_node != NULL && current_node->next != NULL) {
-		if (pointer_to_task_function == current_node->next->function_pointer) {
+		if (node_identification == current_node->next->identification) {
 			process *new_next = current_node->next->next;
 			free(current_node->next);
 			current_node->next = new_next;
