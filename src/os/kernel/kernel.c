@@ -1,5 +1,6 @@
-/* kernel.c manages the proccess and the safty of those proccess
-i.e. prevent crashing of entire system from process accessing wrong memory or null. */
+/* The file "kernel.c" contains the operating system's kernel. The kernel manages (1) processes/threads, 
+(2) memory, (3) input and output, and (4) files. In so doing the kernel (1) facillitates software-hardware 
+interactions and (2) controls all hardware */
 
 #include "pico/stdlib.h"
 #include <stdio.h>
@@ -15,107 +16,110 @@ unsigned int *__initialize_context_switch(unsigned int *stack) {
 process* __head = NULL;
 uint process_count = 0;
 
-uint __compute_id(void);
-uint __priority_scheduler(void);
-
-void kernel_initalize() {
-	// stdio_init_all();
-	printf("Kernel: Kernal initaizing.\n");
+void kerenl_initialize() {
+	__systick_initialize();
 }
-
-// void kernel_start() {
-// 	// stdio_init_all();
-// 	printf("Kernel: Kernal starting.\n");
-// 	while (1) {
-// 		process *current_node = __head;
-// 		while ( current_node != NULL) {
-// 			current_node->function_pointer();
-// 			current_node = current_node->next;
-// 		}
-// 	}
-// }
 
 void kernel_start() {
-	uint run_id = __priority_scheduler();
-	process *running_node = get_process_by_id(run_id);
-	
-	running_node->status = RUNNING;
-	running_node->function_pointer();
+	__round_robin_scheduler();
 }
 
-uint __priority_scheduler(void) {
-	int i;
-	uint king_prioirty = 0;
-	
-	process *current_node = __head;
-	uint king_id = current_node->identification;
-	
-	while (current_node != NULL) {
-		for (uint i = 0; i < process_count; i++) {
-			uint current_priority = current_node->priority;
-
-			if (current_priority > king_prioirty) {
-				king_prioirty = current_priority;
-				king_id = current_node->identification;
-			}
-		}
-		current_node = current_node->next;
-	}
-	return king_id;
+void round_robin_scheduler(void) {
+	while (true) {
+ 		process *current_node = __head;
+ 		while (current_node != NULL) {
+ 			kernel_execute_process(current_node->identification);
+			current_node = current_node->next;
+ 		}
+ 	}
 }
 
-double __compute_priority(uint current_node_id) { 
-	
-	for (uint i = 0; i < process_count; i++) {
-		double current_node_prioirty;
-	}
+uint kernel_create_process(void (*pointer_to_process)(void)) {
+	uint new_identification = __compute_id();
+	uint new_priority = __compute_priority(new_identification);
 
-
-
-
-}
-
-/* "kernel_create_process()" replaces the NULL node with an additional node in the "process" linked list. 
-The function returns the unsigned "id" integer of the created process. Each node represents a 
-process. */
-uint kernel_create_process(void (*pointer_to_task_function)(void), int necessity, mode running) {
-	printf("Kernel: Creating a kernel process.\n");
-
-	uint new_id = __compute_id();
-	uint new_priority = __compute_priority(new_id);
-	/* The following five lines of code create a new node in the "process" linked list, assign sufficent 
-	memmory, and define the variables of the "process" linked list/structure. */
 	process *new_node = malloc(sizeof(process));
-	new_node->function_pointer = pointer_to_task_function;
-	new_node->priority = new_priority;
-	new_node->identification = new_id;
+	new_node->function_pointer = pointer_to_process;
+	new_node->prioirty = new_priority;
+	new_node->identification = new_identification;
 	new_node->status = READY;
-	new_node->next = NULL;
+	process *next_node = get_process_by_id(new_identification++);
+	new_node->next = next_node->function_pointer;
 
 	new_node->stack_words += BDOS_STACK_SIZE - 17;
 	new_node->stack_words[8] = 0xFFFFFFFD; // EXC_RETURN in LR
 	new_node->stack_words[15] = (unsigned int) pointer_to_task_function; // Process Pointer in PC
 	new_node->stack_words[16] = 0x01000000; // Thumb Bit in EPSR
 	new_node->stack_words = __initialize_context_switch(new_node->stack_words);
-
-	/* If the "__head" instance of the "process" linked list/structure equals NULL, the linked list contains 
-	no processes or nodes, and the "new_node" structure redefines the "__head" structure. Otherwise, the 
-	code locates the last node in the linked list/structure and adds the "new_node" strucutre on the end. */
-	if(__head != NULL) {
-		process *last_node = __head;
-		while(last_node->next != NULL) {
-			last_node = last_node->next;
-		}
-	
-		last_node->next = new_node;
-	} else {
-		__head = new_node;
-	}
-	process_count += 1;
-	return new_id;
 }
 
-uint __compute_id(void) {
+void kernel_execute_process(uint node_identification) {
+	process *current_node = get_process_by_id(node_identification);
+	current_node->status = RUNNING;
+
+	current_node->function_pointer() = __initialize_context_switch(current_node->function_pointer());
+}
+
+void kernel_hault_process(uint node_identification) {
+	process *current_node = get_process_by_id(node_identification);
+	current_node->status = READY;
+}
+
+void kernel_block_process(uint node_identification) {
+	process *current_node = get_process_by_id(node_identification);
+	current_node->status = BLOCKED;
+}
+
+void kernel_unblock_process(uint node_identification) {
+	process *current_node = get_process_by_id(node_identification);
+	current_node->status = READY;
+}
+
+bool kernel_terminate_process_by_id(uint node_identification) {
+	process *current_node = __head;
+
+	while (current_node != NULL && current_node->next != NULL) {
+		if (pointer_to_task_function == current_node->next->function_pointer) {
+			process *new_next = current_node->next->next;
+			free(current_node->next);
+			current_node->next = new_next;
+			return true;
+		}
+		current_node->status = TERMINATED;
+		current_node = current_node->next;
+	}
+	return false;
+}
+
+bool kernel_terminate_process_by_pointer(void (*pointer_to_task_function)(void)) {
+	process *current_node = __head;
+
+	while (current_node != NULL && current_node->next != NULL) {
+		if (pointer_to_task_function == current_node->next->function_pointer) {
+			process *new_next = current_node->next->next;
+			free(current_node->next);
+			current_node->next = new_next;
+			return true;
+		}
+		current_node->status = TERMINATED;
+		current_node = current_node->next;
+	}
+	return false;
+}
+
+process *get_process_by_id(uint task_id) {
+	process *current_node = __head;
+	while (current_node != NULL) {
+		if (task_id == current_node->identification) {
+			return current_node;
+		}
+		current_node = current_node->next;
+	}
+	process_count -= 1;
+	return NULL;
+}
+
+uint __compute_identification() {
 	uint i;
 
 	for (i = 0; i < process_count; i++) {
@@ -136,6 +140,10 @@ uint __compute_id(void) {
 	return i + 1;
 }
 
+uint __compute_prioirty(uint node_identification) {
+
+}
+
 void list_all_tasks() {
 	printf("Within list_all_tasks \n");
 
@@ -153,61 +161,4 @@ void list_all_tasks() {
 		printf("Process ID: %i \n", current_node->identification);
 		current_node = current_node->next;
 	}
-}
-
-bool kernel_kill_process_by_pointer(void (*pointer_to_task_function)(void)) {
-	process *current_node = __head;
-
-	while (current_node != NULL && current_node->next != NULL) {
-		if (pointer_to_task_function == current_node->next->function_pointer) {
-			process *new_next = current_node->next->next;
-			free(current_node->next);
-			current_node->next = new_next;
-			return true;
-		}
-		current_node->status = TERMINATED;
-		current_node = current_node->next;
-	}
-	return false;
-}
-
-bool kernel_kill_process_by_id(uint task_id) {
-	process *current_node = __head;
-	while (current_node != NULL && current_node->next != NULL) {
-		if (task_id == current_node->next->identification) {
-			process *new_next = current_node->next->next;
-			free(current_node->next);
-			current_node->next = new_next;
-			return true;
-		}
-		current_node->status = TERMINATED;
-		current_node = current_node->next;
-	}
-	process_count -= 1;
-	return false;
-}
-
-process *get_process_by_id(uint task_id) {
-	process *current_node = __head;
-	while (current_node != NULL) {
-		if (task_id == current_node->identification) {
-			return current_node;
-		}
-		current_node = current_node->next;
-	}
-	process_count -= 1;
-	return false;
-}
-
-process *get_process_by_index(uint index) {
-	process *current_node = __head;
-
-	for (int i = 0; i < index; i++) {
-		if (current_node != NULL) {
-			current_node = current_node->next;
-		} else {
-			return NULL;
-		}
-	}
-	return current_node;
 }

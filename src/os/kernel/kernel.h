@@ -14,32 +14,36 @@ typedef enum mode {
     USER
 } mode;
 
-/* This code initializes the "process" structure whose instances represent nodes of a linked list and a
-process executed in the central processing unit (CPU). */
 typedef struct process {
 	void 				(*function_pointer)(void);
 	double 	            priority;
 	uint				identification;
 	enum 	status		status;
-	struct 	process* 	next;
 	int 				*stack_words;
+	struct 	process* 	next;
 } process;
 
 void kernel_initalize();
 
 void kernel_start();
 
-uint kernel_create_process(void (*pointer_to_task_function)(void), int necessity, mode running);
+void round_robin_scheduler(void)
 
-bool kernel_kill_process_by_pointer(void (*pointer_to_task_function)(void));
+uint kernel_create_process(void (*pointer_to_task_function)(void));
 
-bool kernel_kill_process_by_id(uint task_id);
+void kernel_execute_process(uint node_identification);
+
+void kernel_hault_process(uint node_identification);
+
+void kernel_unblock_process(uint node_identification);
+
+void kernel_block_process(uint node_identification);
+
+bool kernel_terminate_process_by_id(uint node_identification);
+
+bool kernel_terminate_process_by_pointer(void (*pointer_to_task_function)(void));
 
 void list_all_tasks();
-
-void kernel_start();
-
-process *get_process_by_index(uint index);
 
 process *get_process_by_id(uint task_id);
 
