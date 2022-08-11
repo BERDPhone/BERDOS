@@ -89,7 +89,7 @@ uint kernel_create_process(void (*pointer_to_task_function)(void), int necessity
 	new_node->stack_words[8] = (unsigned int) 0xFFFFFFFD; // EXC_RETURN in LR
 	new_node->stack_words[15] = (unsigned int) pointer_to_task_function; // Process Pointer in PC
 	new_node->stack_words[16] = (unsigned int) 0x01000000; // Thumb Bit in EPSR
-	new_node->stack_words = __piccolo_pre_switch(new_node->stack_words);
+	new_node->stack_words = __initialize_context_switch(new_node->stack_words);
 
 	/* If the "__head" instance of the "process" linked list/structure equals NULL, the linked list contains 
 	no processes or nodes, and the "new_node" structure redefines the "__head" structure. Otherwise, the 
