@@ -1,5 +1,6 @@
 /*
- * Copyright (C) 2021 Gary Sims
+ * Copyright (C) 2021-2022 Gary Sims
+ * Copyright (C) 2022 Keith Standiford
  * All rights reserved.
  * 
  * Portions copyright (C) 2017 Scott Nelson
@@ -14,31 +15,34 @@
 
 .type isr_svcall, %function
 .global isr_svcall
+.type isr_systick, %function
+.global isr_systick
 isr_svcall:
+isr_systick:
 	mrs r0, psp
 
-	/* Save r4, r5, r6, r7, and lr first
-	even though that isn't the stack order, as we need
-	to use those registers in a moment */
+    /* Save r4, r5, r6, r7, and lr first
+    even though that isn't the stack order, as we need
+    to use those registers in a moment */
 
-	subs r0, #4
-	mov r1, lr
-	str r1, [r0]
+    subs r0, #4
+    mov r1, lr
+    str r1, [r0]
 
-	subs r0, #16
-	stmia r0!, {r4,r5, r6, r7}
-	
-	mov	r4, r8
+    subs r0, #16
+    stmia r0!, {r4,r5, r6, r7}
+    
+    mov	r4, r8
 	mov	r5, r9
 	mov	r6, r10
 	mov	r7, r11
-	subs r0, #32
-	stmia r0!, {r4,r5, r6, r7}
-	subs r0, #16 /* fix r0 to point to end of stack frame, 36 bytes from original r0 */
+    subs r0, #32
+    stmia r0!, {r4,r5, r6, r7}
+    subs r0, #16 /* fix r0 to point to end of stack frame, 36 bytes from original r0 */
 
 	/* load kernel state from stack*/
 
-	/*
+    /*
 	+------+
 	|  LR  |
 	|  R7  |
@@ -53,22 +57,22 @@ isr_svcall:
 	+------+
 	*/
 
-	pop {r1, r2, r3, r4, r5}
-	mov r8, r1
-	mov r9, r2
-	mov r10, r3
-	mov r11, r4
-	mov r12, r5 /* r12 is ip */
-	pop {r4, r5, r6, r7}	   
+    pop {r1, r2, r3, r4, r5}
+    mov r8, r1
+    mov r9, r2
+    mov r10, r3
+    mov r11, r4
+    mov r12, r5 /* r12 is ip */
+    pop {r4, r5, r6, r7}       
 
 	msr psr_nzcvq, ip
 
-	pop {pc}
+    pop {pc}
 
 .global __piccolo_pre_switch
 __piccolo_pre_switch:
 	/* save kernel state */
-	/*
+    /*
 	+------+
 	|  LR  |
 	|  R7  |
@@ -84,16 +88,16 @@ __piccolo_pre_switch:
 	*/
 
 	mrs ip, psr
-	push {r4, r5, r6, r7, lr}
-	mov r1, r8
-	mov r2, r9
-	mov r3, r10
-	mov r4, r11
-	mov r5, r12
-	push {r1, r2, r3, r4, r5}	
+    push {r4, r5, r6, r7, lr}
+    mov r1, r8
+    mov r2, r9
+    mov r3, r10
+    mov r4, r11
+    mov r5, r12
+    push {r1, r2, r3, r4, r5}    
 
 	/* load user state */ 
-	/*
+    /*
 	+------+
 	|  LR  |
 	|  R7  |
@@ -107,14 +111,14 @@ __piccolo_pre_switch:
 	+------+
 	*/
 
-	ldmia	r0!,{r4-r7}
+    ldmia	r0!,{r4-r7}
 	mov	r8, r4
 	mov	r9, r5
 	mov	r10, r6
 	mov	r11, r7
 	ldmia	r0!,{r4-r7}
-	ldmia	r0!,{r1}
-	mov lr, r1
+    ldmia	r0!,{r1}
+    mov lr, r1
 	msr psp, r0 /* r0 is usertask_stack_start from activate(usertask_stack_start); */
 
 	/* jump to user task */
@@ -123,7 +127,7 @@ __piccolo_pre_switch:
 .global __piccolo_task_init_stack
 __piccolo_task_init_stack:
 	/* save kernel state */
-	/*
+    /*
 	+------+
 	|  LR  |
 	|  R7  |
@@ -139,17 +143,17 @@ __piccolo_task_init_stack:
 	*/
 
 	mrs ip, psr
-	push {r4, r5, r6, r7, lr}
-	mov r1, r8
-	mov r2, r9
-	mov r3, r10
-	mov r4, r11
-	mov r5, r12
-	push {r1, r2, r3, r4, r5}
+    push {r4, r5, r6, r7, lr}
+    mov r1, r8
+    mov r2, r9
+    mov r3, r10
+    mov r4, r11
+    mov r5, r12
+    push {r1, r2, r3, r4, r5}    
 
 	/* switch to process stack */
 	msr psp, r0
-	movs r0, #3
+	movs r0, #2
 	msr control, r0
 	isb
 	/* intentionally continue down into piccolo_syscall */
@@ -159,7 +163,7 @@ __piccolo_task_init_stack:
 .global piccolo_syscall
 piccolo_yield:
 piccolo_syscall:
-	nop
+    nop
 	svc 0
 	nop
 	bx lr
