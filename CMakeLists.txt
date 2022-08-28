@@ -15,7 +15,7 @@ include(pico_sdk_import.cmake)
 project(${NAME}
 	LANGUAGES C CXX ASM)
 
-list(APPEND PICO_CONFIG_HEADER_FILES ${PROJECT_SOURCE_DIR}/piccolo_os_lock_core_v1.1.h
+list(APPEND PICO_CONFIG_HEADER_FILES ${PROJECT_SOURCE_DIR}/src/os/kernel/lock_core.h)
 
 # initialize the Raspberry Pi Pico SDK
 pico_sdk_init()
