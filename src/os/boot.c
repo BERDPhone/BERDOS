@@ -45,10 +45,10 @@ int main() {
 
 	// Have to pass the function pointer.
 	printf("Boot: Creating signal_driver_status process\n");
-	int signal_task = kernel_create_process(&signal_driver_status, 1, KERNEL);
-	int hello_world_task = kernel_create_process(&hello_world, 10, KERNEL);
-	int hello_world_task2 = kernel_create_process(&hello_world, 20, KERNEL);
-	int hello_world_task3 = kernel_create_process(&hello_world, 30, KERNEL);
+	int signal_task = kernel_create_process(&signal_driver_status);
+	int hello_world_task = kernel_create_process(&hello_world);
+	int hello_world_task2 = kernel_create_process(&hello_world);
+	int hello_world_task3 = kernel_create_process(&hello_world);
 
 	// get_process_by_index(2)->priority;
 

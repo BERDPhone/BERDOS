@@ -16,14 +16,6 @@ unsigned int *__initialize_context_switch(void (*pointer_to_task_function)(void)
 process* __head = NULL;
 uint process_count = 0;
 
-void kerenl_initialize() {
-	__systick_initialize();
-}
-
-void kernel_start() {
-	__round_robin_scheduler();
-}
-
 void __round_robin_scheduler(void) {
 	while (true) {
  		process *current_node = __head;
@@ -32,6 +24,14 @@ void __round_robin_scheduler(void) {
 			current_node = current_node->next;
  		}
  	}
+}
+
+void kerenl_initialize() {
+	__systick_initialize();
+}
+
+void kernel_start() {
+	__round_robin_scheduler();
 }
 
 uint kernel_create_process(void (*pointer_to_process)(void)) {

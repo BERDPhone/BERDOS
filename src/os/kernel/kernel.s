@@ -53,7 +53,7 @@ isr_svcall:
     MOV R1, LR
     STR R1, [R0]
 
-    SUB R0, #16
+    SUBS R0, #16
     STMIA R0!, {R4-R7}
 
     MOV R4, R8
@@ -74,7 +74,7 @@ isr_svcall:
     
     POP {R4-R7}
     
-    MSR PSR, IP
+    MSR PSR_NZCVQ, IP
     
     POP {PC}
 
@@ -88,7 +88,7 @@ isr_systick:
     MOV R1, LR
     STR R1, [R0]
 
-    SUB R0, #16
+    SUBS R0, #16
     STMIA R0!, {R4-R7}
 
     MOV R4, R8
@@ -109,7 +109,7 @@ isr_systick:
     
     POP {R4-R7}
     
-    MSR PSR, IP
+    MSR PSR_NZCVQ, IP
     
     POP {PC}
 
@@ -143,8 +143,9 @@ __initialize_context_switch:
     @ Running Process
     BX LR
 
+
 .global __initialize_process_stack
-__initialize_process_stack
+__initialize_process_stack:
     @ Pushing the Kernel State unto the Main Stack
     MRS IP, PSR
 
@@ -159,7 +160,7 @@ __initialize_process_stack
     @ Switch to Process Stack
     MSR PSP, R0
     
-    MOVS R0, 0b#0b00000000000000000000000000000011
+    MOVS R0, #0b00000000000000000000000000000011
     MSR CONTROL, R0
     ISB
 
@@ -169,6 +170,6 @@ __initialize_process_stack
 kernel_yield:
     @ Cause a Supervisor Call (SVCall) Interrupt
     NOP
-    SVC
+    SVC 0
     NOP
     BX LR
