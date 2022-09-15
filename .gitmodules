@@ -1,0 +1,12 @@
+[submodule "src/os/external/hagl_hal"]
+	path = src/os/external/hagl_hal
+	url = https://github.com/tuupola/hagl_pico_mipi.git
+[submodule "src/os/external/hagl"]
+	path = src/os/external/hagl
+	url = https://github.com/tuupola/hagl.git
+[submodule "src/os/drivers/hgal/hagl_hal"]
+	path = src/os/drivers/hgal/hagl_hal
+	url = https://github.com/tuupola/hagl_pico_mipi.git
+[submodule "src/os/drivers/hgal/hagl"]
+	path = src/os/drivers/hgal/hagl
+	url = https://github.com/tuupola/hagl.git

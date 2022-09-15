@@ -19,7 +19,18 @@ pico_set_program_version(boot "0.0.1")
 pico_enable_stdio_uart(boot 1)
 pico_enable_stdio_usb(boot 0)
 
-target_link_libraries(boot pico_stdlib)
+target_link_libraries(boot 
+    pico_stdlib
+    hagl_hal
+    hagl
+)
+
+target_link_libraries(boot hagl hagl_hal)
+
+target_compile_definitions(boot PRIVATE
+  HAGL_HAL_USE_DOUBLE_BUFFER
+  HAGL_HAL_DEBUG
+)
 
 # create map/bin/hex/uf2 file in addition to ELF.
 pico_add_extra_outputs(boot)
