@@ -1,142 +1,97 @@
 /*
-Establish communcations with all devices/slaves, test whether connections work, and displays the status 
-of the device depending on what devices are operational (via built in LED)
-
-Solid green indicates all good
-Blinking green indicates a device is encountering issues
-
-In order to determine which devices are malfunctioning, the LED should blink like so...
-With a longer pause between the series of blinks.
-
-short short 				- screen boot issue
-short long 					- WiFi boot issue
-short short short 			- Microphone boot issue
-*/
+ * Copyright (C) 2021-2022 Gary Sims
+ * Copyright (C) 2022 Keith Standiford
+ * All rights reserved.
+ *
+ * SPDX-License-Identifier: BSD-3-Clause
+ */
 
 #include <stdio.h>
+#include <stdlib.h>
 #include "pico/stdlib.h"
+
 #include "kernel/kernel.h"
-#include "malloc.h"
 
-typedef struct {
-	char	*driver_name;
-	bool	is_operating;
-} __device_driver_status;
+const uint LED_PIN = 25;
+const uint LED2_PIN = 14;
 
-__device_driver_status *__device_drivers;
-__device_driver_status *__driver_initalize();
-void __short_led(uint __led_pin);
-void __long_led(uint __led_pin);
-void signal_driver_status(void);
-void hello_world(void);
+void task1_func(void) {
+  gpio_init(LED_PIN);
+  gpio_set_dir(LED_PIN, GPIO_OUT);
+
+  while (true) {
+    gpio_put(LED_PIN, 1);
+    piccolo_sleep_ms(1000);
+    gpio_put(LED_PIN, 0);
+    piccolo_sleep_ms(1000);
+  }
+}
+
+int is_prime(unsigned int n) {
+  unsigned int p;
+  if (!(n & 1) || n < 2)
+    return n == 2;
+
+  /* comparing p*p <= n can overflow */
+  for (p = 3; p <= n / p; p += 2)
+    if (!(n % p))
+      return 0;
+  return 1;
+}
+
+void task2_func(void) {
+  int p;
+
+  while (1) {
+    p = to_ms_since_boot(get_absolute_time());
+    if (is_prime(p) == 1) {
+      printf("%d is prime!\n", p);
+    }
+  }
+}
+
+int task3_cmpfunc(const void *a, const void *b) {
+  return (*(int *)a - *(int *)b);
+}
+
+/*
+ * Make sure that none of the artificial workload
+ * is optimized away from the compiler
+ */
+#pragma GCC push_options
+#pragma GCC optimize("O0")
+void task3_func(void) {
+  gpio_init(LED2_PIN);
+  gpio_set_dir(LED2_PIN, GPIO_OUT);
+
+  while (true) {
+    gpio_put(LED2_PIN, 1);
+
+    for (int x = 0; x < 20; x++) {
+      int *values = (int *)malloc(1024);
+      int j = 1024;
+      for (int i = 0; i < 1024; i++) {
+        values[i] = j--;
+      }
+      qsort(values, 1024, sizeof(int), task3_cmpfunc);
+      free(values);
+    }
+    gpio_put(LED2_PIN, 0);
+    piccolo_sleep_ms(30);
+  }
+}
+#pragma GCC pop_options
 
 int main() {
-	stdio_init_all();
+  piccolo_init();
 
-	sleep_ms(3000);
+  printf("PICCOLO OS Demo Starting...\n");
 
-	printf("\n\n\n\nBoot: Initalizing the drivers.\n");
-	__device_drivers = __driver_initalize();
-	printf("Boot: Initalized all the drivers.\n");
-	
-	printf("Boot: Initalizing the kernel\n");
-	kernel_initalize();
-	printf("Boot: Finished initaizing the kernel.\n");
+  piccolo_create_task(&task1_func);
+  piccolo_create_task(&task2_func);
+  piccolo_create_task(&task3_func);
 
-	// Have to pass the function pointer.
-	printf("Boot: Creating signal_driver_status process\n");
-	int signal_task = kernel_create_process(&signal_driver_status, 1, KERNEL);
-	int hello_world_task = kernel_create_process(&hello_world, 10, KERNEL);
-	int hello_world_task2 = kernel_create_process(&hello_world, 20, KERNEL);
-	int hello_world_task3 = kernel_create_process(&hello_world, 30, KERNEL);
+  piccolo_start();
 
-	// get_process_by_index(2)->priority;
-
-	printf("Boot: Finished creating signal_driver_status process\n");
-
-	printf("Boot: Calling list_all_tasks\n");
-	// list_all_tasks();
-	printf("Boot: Called list_all_tasks\n");
-
-	// kernel_kill_process_by_id(hello_world_task3);
-	
-	printf("Boot: Calling list_all_tasks\n");
-	list_all_tasks();
-	printf("Boot: Called list_all_tasks\n");
-
-	printf("Boot: Starting the kernel\n");
-	kernel_start();
-	printf("Boot: Finished starting the kernel\n");
-
-	// This should never be reached.
-	return 0;
-}
-
-void hello_world() {
-	printf("hello_world\n");
-}
-
-void signal_driver_status() {
-	printf("signal_driver_status.\n");
-	const uint __led_pin = PICO_DEFAULT_LED_PIN;
-	gpio_init(__led_pin);
-	gpio_set_dir(__led_pin, GPIO_OUT);
-
-	int i;
-	int len = sizeof(__device_driver_status)/sizeof(__device_drivers);
-
-	for (i = 0; i <= len; i++) {
-		if (__device_drivers[i].driver_name == "ILI9341_init.c" && __device_drivers[i].is_operating == false) {
-			gpio_put(__led_pin, 0);
-			sleep_ms(2000);
-			__short_led(__led_pin);
-			__short_led(__led_pin);
-		} else if (__device_drivers[i].driver_name == "ESP-12E_init.c" && __device_drivers[i].is_operating == false) {
-			gpio_put(__led_pin, 0);
-			sleep_ms(2000);
-			__short_led(__led_pin);
-			__long_led(__led_pin);
-
-		} else if (__device_drivers[i].driver_name == "MIC_init.c" && __device_drivers[i].is_operating == false) {
-			gpio_put(__led_pin, 0);
-			sleep_ms(2000);
-			__short_led(__led_pin);
-			__short_led(__led_pin);
-			__short_led(__led_pin);
-		} else {
-			gpio_put(__led_pin, 1);
-		}
-	}
-}
-
-void __short_led(uint __led_pin) {
-	gpio_put(__led_pin, 1);
-	sleep_ms(300);
-	gpio_put(__led_pin, 0);
-	sleep_ms(100);
-}
-
-void __long_led(uint __led_pin) {
-	gpio_put(__led_pin, 1);
-	sleep_ms(600);
-	gpio_put(__led_pin, 0);
-	sleep_ms(100);
-}
-
-
-__device_driver_status *__driver_initalize() {
-	const uint __number_of_drivers = 3;
-
-	__device_driver_status *__device_drivers = malloc(sizeof(__device_driver_status) * __number_of_drivers);
-
-	__device_drivers[0].driver_name = "ILI9341_init.c";
-	__device_drivers[0].is_operating = true;
-
-	__device_drivers[1].driver_name = "ESP-12E_init.c";
-	__device_drivers[1].is_operating = false;
-
-	__device_drivers[2].driver_name = "MIC_init.c";
-	__device_drivers[2].is_operating = true;
-
-	return __device_drivers;
+  return 0; /* Never gonna happen */
 }

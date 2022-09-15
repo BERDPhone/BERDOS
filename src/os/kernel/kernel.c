@@ -1,202 +1,157 @@
-/* kernel.c manages the proccess and the safty of those proccess
-i.e. prevent crashing of entire system from process accessing wrong memory or null. */
+/*
+ * Copyright (C) 2021-2022 Gary Sims
+ * Copyright (C) 2022 Keith Standiford
+ * All rights reserved.
+ * 
+ * Portions copyright (C) 2017 Scott Nelson
+ * Portions copyright (C) 2015-2018 National Cheng Kung University, Taiwan
+ * Portions copyright (C) 2014-2017 Chris Stones
+ *
+ * SPDX-License-Identifier: BSD-3-Clause
+ */
 
 #include "pico/stdlib.h"
 #include <stdio.h>
+//#include "hardware/clocks.h"
+//#include "hardware/structs/clocks.h"
+#include "hardware/structs/systick.h"
+#include "hardware/sync.h"
+
 #include "kernel.h"
-#include "malloc.h"
-#include <string.h>
 
-process* __head = NULL;
-uint process_count = 0;
+unsigned int *__piccolo_os_create_task(unsigned int *stack,
+                                       void (*start)(void));
+void __piccolo_task_init(void);
+unsigned int *__piccolo_pre_switch(unsigned int *stack);
+void __piccolo_task_init_stack(unsigned int *stack);
 
-uint __compute_id(void);
-uint __priority_scheduler(void);
+piccolo_os_internals_t piccolo_ctx;
 
-void kernel_initalize() {
-	// stdio_init_all();
-	printf("Kernel: Kernal initaizing.\n");
+/* Initialize user task stack and execute it once only
+ * We set THREAD_PSP to LR so that exception return
+ * works correctly.
+ * THREAD_PSP means: Return to Thread mode.
+ *                   Exception return gets state from the process stack.
+ *                   Execution uses PSP after return.
+ * See:
+ * http://infocenter.arm.com/help/index.jsp?topic=/com.arm.doc.dui0552a/Babefdjc.html
+ */
+unsigned int *__piccolo_os_create_task(unsigned int *task_stack,
+                                       void (*pointer_to_task_function)(void)) {
+
+  /* This task_stack frame needs to mimic would be saved by hardware and by the
+   * software (in isr_svcall) */
+
+  /*
+        Exception frame saved by the hardware onto task_stack:
+        +------+
+        | xPSR | task_stack[16] 0x01000000 i.e. PSR Thumb bit
+        |  PC  | task_stack[15] pointer_to_task_function
+        |  LR  | task_stack[14]
+        |  R12 | task_stack[13]
+        |  R3  | task_stack[12]
+        |  R2  | task_stack[11]
+        |  R1  | task_stack[10]
+        |  R0  | task_stack[9]
+        +------+
+        Registers saved by the software (isr_svcall):
+        +------+
+        |  LR  | task_stack[8]	(THREAD_PSP i.e. 0xFFFFFFFD)
+        |  R7  | task_stack[7]
+        |  R6  | task_stack[6]
+        |  R5  | task_stack[5]
+        |  R4  | task_stack[4]
+        |  R11 | task_stack[3]
+        |  R10 | task_stack[2]
+        |  R9  | task_stack[1]
+        |  R8  | task_stack[0]
+        +------+
+        */
+
+  task_stack += PICCOLO_OS_STACK_SIZE - 17; /* End of task_stack, minus what we are about to push */
+  task_stack[8] = (unsigned int) PICCOLO_OS_THREAD_PSP;
+  task_stack[15] = (unsigned int) pointer_to_task_function;
+  task_stack[16] = (unsigned int) 0x01000000; /* PSR Thumb bit */
+  //task_stack = __piccolo_pre_switch(task_stack);
+
+  return task_stack;
 }
 
-// void kernel_start() {
-// 	// stdio_init_all();
-// 	printf("Kernel: Kernal starting.\n");
-// 	while (1) {
-// 		process *current_node = __head;
-// 		while ( current_node != NULL) {
-// 			current_node->function_pointer();
-// 			current_node = current_node->next;
-// 		}
-// 	}
-// }
+int piccolo_create_task(void (*pointer_to_task_function)(void)) {
+  if (piccolo_ctx.task_count >= PICCOLO_OS_TASK_LIMIT)
+    return -1;
+  int tc = piccolo_ctx.task_count; // Just for readability
+  piccolo_ctx.the_tasks[tc] =
+      __piccolo_os_create_task(piccolo_ctx.task_stacks[tc], pointer_to_task_function);
+  piccolo_ctx.task_count++;
 
-void kernel_start() {
-	uint run_id = __priority_scheduler();
-	process *running_node = get_process_by_id(run_id);
-	
-	running_node->status = RUNNING;
-	running_node->function_pointer();
+  return piccolo_ctx.task_count - 1;
 }
 
-uint __priority_scheduler(void) {
-	int i;
-	uint king_prioirty = 0;
-	
-	process *current_node = __head;
-	uint king_id = current_node->identification;
-	
-	while (current_node != NULL) {
-		for (uint i = 0; i < process_count; i++) {
-			uint current_priority = current_node->priority;
-
-			if (current_priority > king_prioirty) {
-				king_prioirty = current_priority;
-				king_id = current_node->identification;
-			}
-		}
-		current_node = current_node->next;
-	}
-	return king_id;
+void piccolo_sleep(piccolo_sleep_t *start, int ticks) {
+  *start = to_ms_since_boot(get_absolute_time());
+  while (to_ms_since_boot(get_absolute_time()) < *start + ticks) {
+    piccolo_yield();
+  }
 }
 
-double __compute_priority(uint current_node_id) { 
-	
-	for (uint i = 0; i < process_count; i++) {
-		double current_node_prioirty;
-	}
-
-
-
-
+void piccolo_sleep_ms(int ticks) {
+  piccolo_sleep_t start;
+  start = to_ms_since_boot(get_absolute_time());
+  while (to_ms_since_boot(get_absolute_time()) < start + ticks) {
+    piccolo_yield();
+  }
 }
 
-/* "kernel_create_process()" replaces the NULL node with an additional node in the "process" linked list. 
-The function returns the unsigned "id" integer of the created process. Each node represents a 
-process. */
-uint kernel_create_process(void (*pointer_to_task_function)(void), int necessity, mode running) {
-	printf("Kernel: Creating a kernel process.\n");
-
-	uint new_id = __compute_id();
-	uint new_priority = __compute_priority(new_id);
-	/* The following five lines of code create a new node in the "process" linked list, assign sufficent 
-	memmory, and define the variables of the "process" linked list/structure. */
-	process *new_node = malloc(sizeof(process));
-	new_node->function_pointer = pointer_to_task_function;
-	new_node->priority = new_priority;
-	new_node->identification = new_id;
-	new_node->status = READY;
-	new_node->next = NULL;
-
-	/* If the "__head" instance of the "process" linked list/structure equals NULL, the linked list contains 
-	no processes or nodes, and the "new_node" structure redefines the "__head" structure. Otherwise, the 
-	code locates the last node in the linked list/structure and adds the "new_node" strucutre on the end. */
-	if(__head != NULL) {
-		process *last_node = __head;
-		while(last_node->next != NULL) {
-			last_node = last_node->next;
-		}
-	
-		last_node->next = new_node;
-	} else {
-		__head = new_node;
-	}
-	process_count += 1;
-	return new_id;
+/* After a reset, processor is in thread mode
+ * Switch to handler mode, so that the Piccolo OS kernel runs in handler mode,
+ * and to ensure the correct return from an exception/interrupt later
+ * when switching to a task
+ */
+void __piccolo_task_init(void) {
+  unsigned int dummy[32];
+  __piccolo_task_init_stack(dummy + 32);
 }
 
-uint __compute_id(void) {
-	uint i;
-
-	for (i = 0; i < process_count; i++) {
-		bool is_match = false;
-		process *current_node = __head;
-
-		while (current_node != NULL) {
-			if (current_node->identification == i) {
-				is_match = true;
-			}
-			current_node = current_node->next;
-		}
-
-		if (is_match == false) {
-			return i;
-		}
-	}
-	return i + 1;
+void piccolo_init() {
+  piccolo_ctx.task_count = 0;
+  stdio_init_all();
+  /*
+   * set interrupt priority for SVC, PENDSV and Systick to 'all bits on'
+   * for LOWEST interrupt priority. We do not want ANY of them to preempt
+   * any other irq or each other.
+   */
+  hw_set_bits((io_rw_32 *)(PPB_BASE + M0PLUS_SHPR2_OFFSET), M0PLUS_SHPR2_BITS);
+  hw_set_bits((io_rw_32 *)(PPB_BASE + M0PLUS_SHPR3_OFFSET), M0PLUS_SHPR3_BITS);
 }
 
-void list_all_tasks() {
-	printf("Within list_all_tasks \n");
+void __piccolo_systick_config(unsigned int n) {
+        /* Stop systick and cancel it if it is pending */
+        systick_hw->csr = 0;    // Disable timer and IRQ 
+        __dsb();                // make sure systick is disabled
+        __isb();                // and it is really off
 
-	/* Print all the elements in the linked list */
-	process *current_node = __head;
-	while ( current_node != NULL) {
-		printf("Function pointer: ");
-		unsigned char *cp = (unsigned char*)&current_node->function_pointer;
-		for (int i=0;i<sizeof current_node->function_pointer; i++) {
-			printf("[%08x]", cp[i]);
-		}
-		printf("\n");
+        // clear the systick exception pending bit if it got set
+        hw_set_bits  ((io_rw_32 *)(PPB_BASE + M0PLUS_ICSR_OFFSET),M0PLUS_ICSR_PENDSTCLR_BITS);
 
-		printf("Priority: %i \n", current_node->priority);
-		printf("Process ID: %i \n", current_node->identification);
-		current_node = current_node->next;
-	}
+        systick_hw->rvr = (n) - 1UL;    // set the reload value
+        systick_hw->cvr = 0;    // clear counter to force reload
+        systick_hw->csr = 0x03; // arm IRQ, start counter with 1 usec clock
 }
 
-bool kernel_kill_process_by_pointer(void (*pointer_to_task_function)(void)) {
-	process *current_node = __head;
+void piccolo_start() {
+  piccolo_ctx.current_task = 0;
 
-	while (current_node != NULL && current_node->next != NULL) {
-		if (pointer_to_task_function == current_node->next->function_pointer) {
-			process *new_next = current_node->next->next;
-			free(current_node->next);
-			current_node->next = new_next;
-			return true;
-		}
-		current_node->status = TERMINATED;
-		current_node = current_node->next;
-	}
-	return false;
-}
+  __piccolo_task_init();
 
-bool kernel_kill_process_by_id(uint task_id) {
-	process *current_node = __head;
-	while (current_node != NULL && current_node->next != NULL) {
-		if (task_id == current_node->next->identification) {
-			process *new_next = current_node->next->next;
-			free(current_node->next);
-			current_node->next = new_next;
-			return true;
-		}
-		current_node->status = TERMINATED;
-		current_node = current_node->next;
-	}
-	process_count -= 1;
-	return false;
-}
+  while (1) {
+    __piccolo_systick_config(PICCOLO_OS_TIME_SLICE);
+    piccolo_ctx.the_tasks[piccolo_ctx.current_task] =
+        __piccolo_pre_switch(piccolo_ctx.the_tasks[piccolo_ctx.current_task]);
 
-process *get_process_by_id(uint task_id) {
-	process *current_node = __head;
-	while (current_node != NULL) {
-		if (task_id == current_node->identification) {
-			return current_node;
-		}
-		current_node = current_node->next;
-	}
-	process_count -= 1;
-	return false;
-}
-
-process *get_process_by_index(uint index) {
-	process *current_node = __head;
-
-	for (int i = 0; i < index; i++) {
-		if (current_node != NULL) {
-			current_node = current_node->next;
-		} else {
-			return NULL;
-		}
-	}
-	return current_node;
+    piccolo_ctx.current_task++;
+    if (piccolo_ctx.current_task >=
+        piccolo_ctx.task_count)
+      piccolo_ctx.current_task = 0;
+  }
 }

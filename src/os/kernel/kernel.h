@@ -1,44 +1,43 @@
-#ifndef KERNEL_H
-#define KERNEL_H
+/*
+ * Copyright (C) 2021-2022 Gary Sims
+ * Copyright (C) 2022 Keith Standiford
+ * All rights reserved.
+ * 
+ * SPDX-License-Identifier: BSD-3-Clause
+ */
 
-typedef enum status {
-	TERMINATED,
-	BLOCKED,
-	READY,
-	RUNNING,
-} status;
+#ifndef PICCOLO_OS_H
+#define PICCOLO_OS_H
 
-typedef enum mode {
-	KERNEL,
-    USER
-} mode;
+/* Size of our user task stacks in words */
+#define PICCOLO_OS_STACK_SIZE 256
 
-/* This code initializes the "process" structure whose instances represent nodes of a linked list and a
-process executed in the central processing unit (CPU). */
-typedef struct process {
-	void 				(*function_pointer)(void);
-	double 	            priority;
-	uint				identification;
-	enum 	status		status;
-	struct 	process* 	next;
-} process;
+/* Number of user task */
+#define PICCOLO_OS_TASK_LIMIT 3
 
-void kernel_initalize();
+/* Exception return behavior */
+#define PICCOLO_OS_THREAD_PSP 0xFFFFFFFD
 
-void kernel_start();
+/*  Time slice in usec for each task execution. Task will be preempted
+    if it runs longer (set small for testing!) */
+#define PICCOLO_OS_TIME_SLICE 1000
 
-uint kernel_create_process(void (*pointer_to_task_function)(void), int necessity, mode running);
+struct {
+  unsigned int task_stacks[PICCOLO_OS_TASK_LIMIT][PICCOLO_OS_STACK_SIZE];
+  unsigned int *the_tasks[PICCOLO_OS_TASK_LIMIT];
+  size_t task_count;
+  size_t current_task;
+  bool started;
+} typedef piccolo_os_internals_t;
 
-bool kernel_kill_process_by_pointer(void (*pointer_to_task_function)(void));
+typedef uint32_t piccolo_sleep_t;
 
-bool kernel_kill_process_by_id(uint task_id);
-
-void list_all_tasks();
-
-void kernel_start();
-
-process *get_process_by_index(uint index);
-
-process *get_process_by_id(uint task_id);
-
+void piccolo_yield(void);
+void piccolo_syscall(void);
+void piccolo_task_init(void);
+int piccolo_create_task(void (*pointer_to_task_function)(void));
+void piccolo_sleep(piccolo_sleep_t *pointer_to_task_function, int ticks);
+void piccolo_sleep_ms(int ticks);
+void piccolo_init();
+void piccolo_start();
 #endif

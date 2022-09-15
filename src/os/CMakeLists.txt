@@ -5,15 +5,21 @@ add_subdirectory(kernel/)
 
 add_executable(boot
     boot.c
+    kernel/context_switch.s
+    kernel/kernel.c
+    kernel/kernel.h
+    kernel/lock_core.c
+    kernel/lock_core.h
 )
 
-# Add pico_stdlib library which aggregates commonly used features
-target_link_libraries(boot pico_stdlib pico_malloc)
-target_link_libraries(boot kernel)
+pico_set_program_name(boot "boot")
+pico_set_program_version(boot "0.0.1")
 
 # enable usb output, disable uart output
-pico_enable_stdio_usb(boot 0)
 pico_enable_stdio_uart(boot 1)
+pico_enable_stdio_usb(boot 0)
+
+target_link_libraries(boot pico_stdlib)
 
 # create map/bin/hex/uf2 file in addition to ELF.
 pico_add_extra_outputs(boot)
