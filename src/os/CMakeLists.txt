@@ -5,6 +5,7 @@ add_subdirectory(kernel/)
 
 add_executable(boot
     boot.c
+    kernel/context_switch.s
     kernel/kernel.c
     kernel/kernel.h
     kernel/lock_core.c
