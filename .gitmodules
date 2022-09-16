@@ -10,3 +10,9 @@
 [submodule "src/os/drivers/hgal/hagl"]
 	path = src/os/drivers/hgal/hagl
 	url = https://github.com/tuupola/hagl.git
+[submodule "src/os/drivers/hagl/hagl"]
+	path = src/os/drivers/hagl/hagl
+	url = https://github.com/tuupola/hagl.git
+[submodule "src/os/drivers/hagl/hagl_hal"]
+	path = src/os/drivers/hagl/hagl_hal
+	url = https://github.com/tuupola/hagl_pico_mipi.git
