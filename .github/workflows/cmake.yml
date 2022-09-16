@@ -8,7 +8,7 @@ env:
 jobs:
   build:
     if: github.repository_owner == 'BERDPhone'
-    runs-on: [self-hosted, Linux, X64]
+    runs-on: [self-hosted, Linux, ARM64]
 
     steps:
     - name: Clean workspace
