@@ -1,5 +1,11 @@
 name: CMake
-on: [push, pull_request]
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    types: [opened, reopened, edited]
+
 
 env:
   # Customize the CMake build type here (Release, Debug, RelWithDebInfo, etc.)
