@@ -23,6 +23,10 @@ target_link_libraries(boot
     pico_stdlib
     hagl_hal
     hagl
+    pico_malloc 
+    hardware_exception 
+    hardware_sync
+    pico_multicore
 )
 
 target_link_libraries(boot hagl hagl_hal)
