@@ -4,12 +4,12 @@ add_subdirectory(helpers/)
 add_subdirectory(kernel/)
 
 add_executable(boot
-    boot.c
-    kernel/context_switch.s
-    kernel/kernel.c
-    kernel/kernel.h
-    kernel/lock_core.c
-    kernel/lock_core.h
+	boot.c 
+	kernel/context_switch.s 
+	kernel/kernel.c 
+	kernel/kernel.h 
+	kernel/lock_core.c 
+	kernel/lock_core.h
 )
 
 pico_set_program_name(boot "boot")
@@ -20,16 +20,14 @@ pico_enable_stdio_uart(boot 1)
 pico_enable_stdio_usb(boot 0)
 
 target_link_libraries(boot 
-    pico_stdlib
-    hagl_hal
-    hagl
-    pico_malloc 
-    hardware_exception 
-    hardware_sync
-    pico_multicore
+	pico_stdlib
+	pico_malloc 
+	hardware_exception 
+	hardware_sync
+	pico_multicore
+	hagl_hal
+	hagl
 )
-
-target_link_libraries(boot hagl hagl_hal)
 
 target_compile_definitions(boot PRIVATE
   HAGL_HAL_USE_DOUBLE_BUFFER
