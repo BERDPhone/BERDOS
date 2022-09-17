@@ -16,8 +16,7 @@
 
 #include "kernel/kernel.h"
 
-const uint LED_PIN = 25;
-const uint LED2_PIN = 14;
+const uint LED_PIN = 14;
 volatile extern uint32_t tickct;
 volatile extern int32_t sleep_time;
 volatile extern int32_t sleep_core;
