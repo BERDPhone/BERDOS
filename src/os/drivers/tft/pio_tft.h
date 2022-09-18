@@ -3,14 +3,15 @@
 // the Pico's PIO feature to output the bytes at a rate
 // of about 30M bytes/sec.
 
-#pragma once
+#ifndef PIO_TFT
+#define PIO_TFT
 
 #include "pico/stdlib.h"
 #include "stdint.h"
 
 // Clock division of 1 yields an output rate of about 30M bytes/sec.
 // For a finer tuning of the timing, add/remove delays in pio_tft.pio.
-void init(uint8_t tft_d0_pin, uint8_t tft_wr_pin, uint16_t clock_div = 1);
+void init(uint8_t tft_d0_pin, uint8_t tft_wr_pin, uint16_t clock_div);
 
 // Flush pending writes and then set mode.
 //
@@ -37,8 +38,10 @@ void write(uint16_t value);
 //
 // This allows to have a 8 bit/pixel buffer and map it on
 // the fly with a lookup table to 16 bits/pixels.
-void multi_write(const uint8_t* keys, uint32_t n, uint16_t* map);
+void multi_write_map(const uint8_t* keys, uint32_t n, uint16_t* map);
 // Straight forward block output. 
-void multi_write(const uint16_t* values, uint32_t n);
+void multi_write_pointer(const uint16_t* values, uint32_t n);
 // Repeatetive output of same value. For rect fill, etc.
 void multi_write(uint16_t value, uint32_t n);
+
+#endif

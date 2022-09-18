@@ -103,7 +103,7 @@ void write(uint16_t value) { pio_sm_put_blocking(PIO, SM, value); }
 // This is the most challanging loop since it also does
 // the value mapping and we want to do that at max
 // transfer rate of the PIO.
-void multi_write(const uint8_t *keys, uint32_t n, uint16_t *map) {
+void multi_write_map(const uint8_t *keys, uint32_t n, uint16_t *map) {
   const uint8_t *p = keys;
   const uint8_t *const limit = p + n;
   const uint8_t *const limit_minus_20 = limit - 20;
@@ -147,7 +147,7 @@ void multi_write(const uint8_t *keys, uint32_t n, uint16_t *map) {
   }
 }
 
-void multi_write(const uint16_t *values, uint32_t n) {
+void multi_write_pointer(const uint16_t *values, uint32_t n) {
   const uint16_t *p = values;
   const uint16_t *const limit = p + n;
   const uint16_t *const limit_minus_20 = limit - 20;

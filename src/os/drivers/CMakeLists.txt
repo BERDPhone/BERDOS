@@ -1,1 +1,1 @@
-add_subdirectory(ILI9488)
+add_subdirectory(tft)

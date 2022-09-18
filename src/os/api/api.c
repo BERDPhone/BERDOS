@@ -3,7 +3,7 @@
 #include <stdio.h>
 
 #include "pico/stdlib.h"
-#include "pio_tft.h"
+#include "../drivers/tft/pio_tft.h"
 
 // Plain GPIO output pins.
 #define TFT_RST_PIN 2  // Active low.
@@ -39,7 +39,7 @@ uint16_t PIO_CLOCK_DIV = 1;
 
 //static PioTft pio_tft(TFT_D0_PIN, TFT_WR_PIN, PIO_CLOCK_DIV);
 
-bool is_overrun() { return is_overrun(); }
+bool is_overrun_tft() { return is_overrun(); }
 
 inline void write_command_byte(uint8_t c) {
     // This also flushes any pending writes.
