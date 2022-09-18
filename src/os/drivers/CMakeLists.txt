@@ -1,1 +1,1 @@
-add_subdirectory(hagl)
+add_subdirectory(ILI9488)

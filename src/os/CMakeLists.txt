@@ -25,13 +25,7 @@ target_link_libraries(boot
 	hardware_exception 
 	hardware_sync
 	pico_multicore
-	hagl_hal
-	hagl
-)
-
-target_compile_definitions(boot PRIVATE
-  HAGL_HAL_USE_DOUBLE_BUFFER
-  HAGL_HAL_DEBUG
+	api
 )
 
 # create map/bin/hex/uf2 file in addition to ELF.
