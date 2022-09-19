@@ -16,6 +16,9 @@
 
 #include "kernel/kernel.h"
 
+#include <hagl_hal.h>
+#include <hagl.h>
+
 // const uint LED_PIN = 14;
 // volatile extern uint32_t tickct;
 // volatile extern int32_t sleep_time;
@@ -242,19 +245,29 @@
 //   return 0; /* Never gonna happen */
 // }
 
-#include <hagl_hal.h>
-#include <hagl.h>
+static hagl_backend_t *display;
 
 int main() {
-    for (uint16_t i = 1; i < 10; i++) {
-        int16_t x0 = rand() % DISPLAY_WIDTH;
-        int16_t y0 = rand() % DISPLAY_HEIGHT;
-        int16_t x1 = rand() % DISPLAY_WIDTH;
-        int16_t y1 = rand() % DISPLAY_HEIGHT;
-        color_t color = rand() % 0xffff;
+    display = hagl_init();
 
-        hagl_fill_rectangle(display, x0, y0, x1, y1, color);
+    while (1) {
+        hagl_clear(display);
+
+        for (uint16_t i = 1; i < 10; i++) {
+            int16_t x0 = rand() % DISPLAY_WIDTH;
+            int16_t y0 = rand() % DISPLAY_HEIGHT;
+            int16_t x1 = rand() % DISPLAY_WIDTH;
+            int16_t y1 = rand() % DISPLAY_HEIGHT;
+            color_t color = rand() % 0xffff;
+
+            hagl_fill_rectangle(display, x0, y0, x1, y1, color);
+        }
+
+        hagl_flush(display);
+
     }
+
+    hagl_close(display);
 
     return 0;
 }
