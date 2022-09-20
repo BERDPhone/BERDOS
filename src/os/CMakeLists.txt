@@ -32,7 +32,7 @@ target_link_libraries(boot
 )
 
 target_compile_definitions(boot PRIVATE
-	HAGL_HAL_USE_DOUBLE_BUFFER
+	HAGL_HAL_USE_SINGLE_BUFFER
 	HAGL_HAL_USE_DMA
 	HAGL_HAL_DEBUG
 	MIPI_DISPLAY_PIN_CS=9
