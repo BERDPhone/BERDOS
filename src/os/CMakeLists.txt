@@ -10,6 +10,7 @@ add_executable(boot
 	kernel/kernel.h 
 	kernel/lock_core.c 
 	kernel/lock_core.h
+	helpers/hw_config.c
 )
 
 pico_set_program_name(boot "boot")
@@ -27,6 +28,8 @@ target_link_libraries(boot
 	pico_multicore
 	hagl_hal
 	hagl
+	pico_sd_card
+	FatFs_SPI
 )
 
 target_compile_definitions(boot PRIVATE

@@ -1,1 +1,2 @@
 add_subdirectory(hagl)
+add_subdirectory(FatFs_SPI)
