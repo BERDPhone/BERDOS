@@ -1,175 +1,169 @@
+/*
+ * Copyright (C) 2021-2022 Gary Sims
+ * Copyright (C) 2022 Keith Standiford
+ * All rights reserved.
+ * 
+ * Portions copyright (C) 2017 Scott Nelson
+ * Portions copyright (C) 2015-2018 National Cheng Kung University, Taiwan
+ * Portions copyright (C) 2014-2017 Chris Stones
+ *
+ * SPDX-License-Identifier: BSD-3-Clause
+ */
+ 
 .thumb
 .syntax unified
 
-@ Diagrams:
-    @   # Process Stack
-    @   ## Stacked upon Interrupt
-    @   +------+
-    @   | xPSR | stack_words[16] = 0x01000000
-    @   |  PC  | stack_words[15] = pointer_to_task_function
-    @   |  LR  | stack_words[14]
-    @   |  R12 | stack_words[13]
-    @   |  R3  | stack_words[12]
-    @   |  R2  | stack_words[11]
-    @   |  R1  | stack_words[10]
-    @   |  R0  | stack_words[9]
-    @   +------+  
-    @   ## Stacked by Interrupt Handlers
-    @   +------+ 
-    @   |  LR  | stack_words[8] = 0xFFFFFFFD
-    @   |  R7  | stack_words[7]
-    @   |  R6  | stack_words[6]
-    @   |  R5  | stack_words[5]
-    @   |  R4  | stack_words[4]
-    @   |  R11 | stack_words[3]
-    @   |  R10 | stack_words[2]
-    @   |  R9  | stack_words[1]
-    @   |  R8  | stack_words[0]
-    @   +------+ 
-    @
-    @   # Main Stack
-    @   ## Stacked by 
-    @   +------+ 
-    @   |  LR  |
-    @   |  R7  |
-    @   |  R6  |
-    @   |  R5  | 
-    @   |  R4  |
-    @   |  R12 | * Kernel xPSR
-    @   |  R11 |
-    @   |  R10 |
-    @   |  R9  | 
-    @   |  R8  |
-    @   +------+ 
-
 .type isr_svcall, %function
 .global isr_svcall
-isr_svcall:
-    @ Pushing the Process State unto the Process Stack
-    
-    MRS R0, PSP
-    SUBS R0, #4
-
-    MOV R1, LR
-    STR R1, [R0]
-
-    SUBS R0, #16
-    STMIA R0!, {R4-R7}
-
-    MOV R4, R8
-    MOV R5, R9
-    MOV R6, R10
-    MOV R7, R11
-    SUBS R0, #32
-    STMIA R0!, {R4-R7}
-    SUBS R0, #16
-
-    @ Popping the Kernel State off of the Main Stack
-    POP {R1-R5}
-    MOV R8, R1
-    MOV R9, R2
-    MOV R10, R3
-    MOV R11, R4
-    MOV R12, R5
-    
-    POP {R4-R7}
-    
-    MSR PSR_NZCVQ, IP
-    
-    POP {PC}
-
 .type isr_systick, %function
 .global isr_systick
+isr_svcall:
 isr_systick:
-    @ Pushing the Process State unto the Process Stack
-    MRS R0, PSP
-    SUBS R0, #4
+    mrs r0, psp
 
-    MOV R1, LR
-    STR R1, [R0]
+    /* Save r4, r5, r6, r7, and lr first
+    even though that isn't the stack order, as we need
+    to use those registers in a moment */
 
-    SUBS R0, #16
-    STMIA R0!, {R4-R7}
+    subs r0, #4
+    mov r1, lr
+    str r1, [r0]
 
-    MOV R4, R8
-    MOV R5, R9
-    MOV R6, R11
-    MOV R7, R12
-    SUBS R0, #32
-    STMIA R0!, {R4-R7}
-    SUBS R0, #16
-
-    @ Popping the Kernel State off of the Main Stack
-    POP {R1-R5}
-    MOV R8, R1
-    MOV R9, R2
-    MOV R10, R3
-    MOV R11, R4
-    MOV R12, R5
+    subs r0, #16
+    stmia r0!, {r4,r5, r6, r7}
     
-    POP {R4-R7}
-    
-    MSR PSR_NZCVQ, IP
-    
-    POP {PC}
+    mov r4, r8
+    mov r5, r9
+    mov r6, r10
+    mov r7, r11
+    subs r0, #32
+    stmia r0!, {r4,r5, r6, r7}
+    subs r0, #16 /* fix r0 to point to end of stack frame, 36 bytes from original r0 */
 
-.global __initialize_context_switch
-__initialize_context_switch:
-    @ Pushing the Kernel State unto the Main Stack
-    MRS IP, PSR
+    /* load kernel state from stack*/
 
-    PUSH {R4-R7}
+    /*
+    +------+
+    |  LR  |
+    |  R7  |
+    |  R6  |
+    |  R5  |
+    |  R4  |
+    |  R12 | NB: R12  (i.e IP which holds the PSR) is included, unlike user state
+    |  R11 |
+    |  R10 |
+    |  R9  |
+    |  R8  | <- POP from here
+    +------+
+    */
 
-    MOV R4, R8
-    MOV R5, R9
-    MOV R6, R10
-    MOV R7, R11
-    PUSH {R4-R7}
+    pop {r1, r2, r3, r4, r5}
+    mov r8, r1
+    mov r9, r2
+    mov r10, r3
+    mov r11, r4
+    mov r12, r5 /* r12 is ip */
+    pop {r4, r5, r6, r7}       
 
-    @ Popping the Process State off of the Process Stack
-    LDMIA R0!, {R4-R7}
-    MOV R8, R4
-    MOV R9, R5
-    MOV R10, R6
-    MOV R11, R7
+    msr psr_nzcvq, ip
 
-    LDMIA R0!, {R4-R7}
-    
-    LDMIA R0!, {R1}
-    MOV LR, R1
+    pop {pc}
 
-    MSR PSP, R0
+.global __piccolo_pre_switch
+__piccolo_pre_switch:
+    /* save kernel state */
+    /*
+    +------+
+    |  LR  |
+    |  R7  |
+    |  R6  |
+    |  R5  |
+    |  R4  |
+    |  R12 | NB: R12  (i.e IP) is included, unlike user state
+    |  R11 |
+    |  R10 |
+    |  R9  |
+    |  R8  | 
+    +------+
+    */
 
-    @ Running Process
-    BX LR
+    mrs ip, psr
+    push {r4, r5, r6, r7, lr}
+    mov r1, r8
+    mov r2, r9
+    mov r3, r10
+    mov r4, r11
+    mov r5, r12
+    push {r1, r2, r3, r4, r5}    
 
+    /* load user state */ 
+    /*
+    +------+
+    |  LR  |
+    |  R7  |
+    |  R6  |
+    |  R5  |
+    |  R4  |
+    |  R11 |
+    |  R10 |
+    |  R9  |
+    |  R8  | <- r0
+    +------+
+    */
 
-.global __initialize_process_stack
-__initialize_process_stack:
-    @ Pushing the Kernel State unto the Main Stack
-    MRS IP, PSR
+    ldmia   r0!,{r4-r7}
+    mov r8, r4
+    mov r9, r5
+    mov r10, r6
+    mov r11, r7
+    ldmia   r0!,{r4-r7}
+    ldmia   r0!,{r1}
+    mov lr, r1
+    msr psp, r0 /* r0 is usertask_stack_start from activate(usertask_stack_start); */
 
-    PUSH {R4-R7}
+    /* jump to user task */
+    bx lr
 
-    MOV R4, R8
-    MOV R5, R9
-    MOV R6, R10
-    MOV R7, R11
-    PUSH {R4-R7}
+.global __piccolo_task_init_stack
+__piccolo_task_init_stack:
+    /* save kernel state */
+    /*
+    +------+
+    |  LR  |
+    |  R7  |
+    |  R6  |
+    |  R5  |
+    |  R4  |
+    |  R12 | NB: R12 (i.e IP which holds the PSR) is included, unlike user state
+    |  R11 |
+    |  R10 |
+    |  R9  |
+    |  R8  | 
+    +------+
+    */
 
-    @ Switch to Process Stack
-    MSR PSP, R0
-    
-    MOVS R0, #0b00000000000000000000000000000011
-    MSR CONTROL, R0
-    ISB
+    mrs ip, psr
+    push {r4, r5, r6, r7, lr}
+    mov r1, r8
+    mov r2, r9
+    mov r3, r10
+    mov r4, r11
+    mov r5, r12
+    push {r1, r2, r3, r4, r5}    
 
-    BL kernel_yield
+    /* switch to process stack */
+    msr psp, r0
+    movs r0, #2
+    msr control, r0
+    isb
+    /* intentionally continue down into piccolo_syscall */
+    /* same as bl piccolo_syscall, if the code wasn't below */
 
-.global kernel_yield
-kernel_yield:
-    @ Cause a Supervisor Call (SVCall) Interrupt
-    NOP
-    SVC 0
-    NOP
-    BX LR
+.global piccolo_yield
+.global piccolo_syscall
+piccolo_yield:
+piccolo_syscall:
+    nop
+    svc 0
+    nop
+    bx lr
