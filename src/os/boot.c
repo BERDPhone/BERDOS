@@ -40,15 +40,15 @@ int main() {
 	printf("Boot: Initalized all the drivers.\n");
 	
 	printf("Boot: Initalizing the kernel\n");
-	kernel_initalize();
+	kernel_initizalize();
 	printf("Boot: Finished initaizing the kernel.\n");
 
 	// Have to pass the function pointer.
 	printf("Boot: Creating signal_driver_status process\n");
-	int signal_task = kernel_create_process(&signal_driver_status);
-	int hello_world_task = kernel_create_process(&hello_world);
-	int hello_world_task2 = kernel_create_process(&hello_world);
-	int hello_world_task3 = kernel_create_process(&hello_world);
+	int signal_task = create_process(&signal_driver_status);
+	int hello_world_task = create_process(&hello_world);
+	int hello_world_task2 = create_process(&hello_world);
+	int hello_world_task3 = create_process(&hello_world);
 
 	// get_process_by_index(2)->priority;
 
@@ -61,7 +61,7 @@ int main() {
 	// kernel_kill_process_by_id(hello_world_task3);
 	
 	printf("Boot: Calling list_all_tasks\n");
-	list_all_tasks();
+	//list_all_tasks();
 	printf("Boot: Called list_all_tasks\n");
 
 	printf("Boot: Starting the kernel\n");

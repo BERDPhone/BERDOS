@@ -36,6 +36,6 @@ void terminate_process(uint node_id_number);
 // ## KERNEL OPERATION
 // ### KERNEL -- START-UP
 void kernel_initizalize(void);
-void kerenl_start(void);
+void kernel_start(void);
 
 #endif

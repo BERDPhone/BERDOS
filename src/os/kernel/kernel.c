@@ -170,12 +170,11 @@ void __round_robin_scheduler(void) {
 
 // ## KERNEL OPERATION
 // ### KERNEL -- START-UP
-void kernel_initialize(void) {
+void kernel_initizalize(void) {
 }
 
 void kernel_start(void) {
 	while (true) {
 		__first_come_first_serve_scheduler();
 	}
-
 }
