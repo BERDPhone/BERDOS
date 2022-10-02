@@ -1,7 +1,7 @@
 #ifndef KERNEL_H
 #define KERNEL_H
 #define BERDOS_STACK_SIZE 256
-#define BERDOS_TIME_SLICE_SIZE 1000
+#define BERDOS_TIME_SLICE 999
 #define BERDOS_PROCESS_LIMIT 5
 
 // # DATA DECLARATIONS
@@ -27,7 +27,7 @@ struct process		*next_node;
 // # FUNCTION DECLARATIONS
 // ## PROCESS MANAGEMENT
 // ### PROCESS -- STATE MANAGEMENT
-void create_process(void (*function_pointer)(void));
+uint create_process(uint *function_pointer);
 void execute_process(uint node_id_number);
 void block_process(uint node_id_number);
 void ready_process(uint node_id_number);
