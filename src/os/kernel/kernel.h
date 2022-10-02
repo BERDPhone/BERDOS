@@ -15,7 +15,7 @@ typedef enum states {
 } states;
 
 typedef struct process {
-uint				*process_pointer;
+void				(*process_pointer)(void);
 uint 				process_stack[BERDOS_STACK_SIZE]; // Must be word-aligned.
 uint 				process_id_number;
 enum 	states 		process_status;
@@ -27,7 +27,7 @@ struct process		*next_node;
 // # FUNCTION DECLARATIONS
 // ## PROCESS MANAGEMENT
 // ### PROCESS -- STATE MANAGEMENT
-uint create_process(uint *function_pointer);
+uint create_process(void (*function_pointer)(void));
 void execute_process(uint node_id_number);
 void block_process(uint node_id_number);
 void ready_process(uint node_id_number);

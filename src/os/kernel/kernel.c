@@ -23,7 +23,7 @@ void __disable_preemption(void);
 void __enable_preemption(uint time_slice_duration);
 
 // ### PROCESS -- CONTEXT SWITCHING
-//uint *__piccolo_pre_switch(uint *R0);
+uint *__piccolo_pre_switch(uint *R0);
 
 
 // # FUNCTION DEFINITIONS
@@ -76,7 +76,7 @@ uint __generate_new_id_number() {
 }
 
 // ### PROCESS -- STATE MANAGEMENT
-uint create_process(uint *function_pointer) {
+uint create_process(void (*function_pointer)(void)) {
 	if (process_count != BERDOS_PROCESS_LIMIT) {
 		// Initializing the New Process's Node in the Process Table/Linked List
 		process *new_node = malloc(sizeof(process));
