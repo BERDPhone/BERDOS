@@ -67,6 +67,10 @@ isr_systick:
 
     msr psr_nzcvq, ip
 
+    PUSH {R0}
+    BL =ready_process
+    POP {R0}
+
     pop {pc}
 
 .global __piccolo_pre_switch
