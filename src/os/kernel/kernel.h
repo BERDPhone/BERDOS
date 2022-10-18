@@ -3,7 +3,7 @@
 #define BERDOS_STACK_SIZE 256
 #define BERDOS_TIME_SLICE 999
 #define BERDOS_PROCESS_LIMIT 5
-#define BERDOS_DEFAULT_SCHEDULER 0 // 0 = FIRST_COME_FIRST_SERVED
+#define BERDOS_DEFAULT_SCHEDULER 0 // 0 = FIRST_COME_FIRST_SERVED, 1 = ROUND_ROBIN
 
 // # DATA DECLARATIONS
 // ## PROCESS MANAGEMENT
@@ -25,7 +25,7 @@ struct 			process		*next_node;
 } process;
 
 typedef enum schedulers {
-	FIRST_COME_FIRST_SERVED,
+	FIRST_COME_FIRST_SERVED = 0,
 	ROUND_ROBIN,
 	SHORTEST_JOB_NEXT,
 	SHORTEST_REMAINING_TIME_NEXT,
@@ -44,6 +44,6 @@ void terminate_process(unsigned int node_id_number);
 // ### KERNEL -- START-UP
 void kernel_initizalize(void);
 void kernel_start(void);
-void piccolo_sleep_ms(int ticks);
+void piccolo_yield(void);
 
 #endif

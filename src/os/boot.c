@@ -21,32 +21,43 @@ void blink2(void) {
   gpio_set_dir(LED_PIN2, GPIO_OUT);
 
   gpio_put(LED_PIN2, 1);
-  sleep_ms(1000);
+  sleep_ms(250);
   gpio_put(LED_PIN2, 0);
-  sleep_ms(1000);
+  sleep_ms(250);
 }
 
-void blinker(void) {
+void blinker1(void) {
   while (true) {
     blink1();
+    printf("BLINK1 \n");
+    piccolo_yield();
+
+  }
+}
+
+void blinker2(void) {
+  while (true) {
+    blink2();
+    printf("BLINK2 \n");
+    piccolo_yield();
   }
 }
 
 int main(void) {
-
-  //blink2();
-
-  kernel_initizalize();
-
-  //blink2();
-
-  create_process(&blinker);
+  stdio_init_all();
 
   blink2();
 
-  kernel_start();
+  printf("***** \n");
+  printf("BOOT: Initializing Kernel \n");
+  kernel_initizalize();
 
-  blinker();
+  printf("BOOT: Creating Processes \n");
+  create_process(&blinker1);
+  create_process(&blinker2);
+
+  printf("BOOT: Starting Kernel \n");
+  kernel_start();
 
   return 0;
 }

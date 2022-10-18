@@ -13,12 +13,13 @@ void blink1(void);
 void blink2(void);
 
 process *__head = NULL;
+schedulers scheduling_dicipline;
+
 unsigned int process_count;
 unsigned int ready_queue[BERDOS_PROCESS_LIMIT];
-enum schedulers scheduling_dicipline;
 
 unsigned int *__create_process_stack(unsigned int *process_stack, void (*function_pointer)(void)) {
-		process_stack += BERDOS_STACK_SIZE - 17; /* End of task_stack, minus what we are about to push */
+	process_stack += BERDOS_STACK_SIZE - 17; /* End of task_stack, minus what we are about to push */
   	process_stack[8] = (unsigned int) 0xFFFFFFFD; // EXC_RETURN in LR
   	process_stack[15] = (unsigned int) function_pointer; // Function Pointer in PC
   	process_stack[16] = (unsigned int) 0x01000000; // Thumb Bit in EPSR
@@ -43,44 +44,60 @@ void __enable_preemption(unsigned int time_slice_duration) {
     systick_hw->csr = 0x03; 		// Set Systick Control Status Register; Enable IRQ and Clock
 }
 
+
 process *__get_process_by_id_number(unsigned int node_id_number) {
 	process *current_node = __head;
+	printf("GET: #%d ~ #%d @%p \n", node_id_number, current_node->process_id_number, current_node);
 	while (current_node != NULL) {
-		if (node_id_number == current_node->process_id_number) {
+		if (current_node->process_id_number == node_id_number) {
+			printf("GET: Passed \n");
 			return current_node;
-		} current_node = current_node->next_node;
-	} 
+		};
+		current_node = current_node->next_node;
+	};
+	printf("GET: Failed \n");
 	return NULL;
 }
 
 unsigned int create_process(void (*function_pointer)(void)) {
 	if (process_count < BERDOS_PROCESS_LIMIT) {
-		// Initializing the New Process's Node in the Process Table/Linked List
+		unsigned int new_id_number;
+
 		process *new_node = malloc(sizeof(process));
 		new_node->process_pointer = function_pointer;
-		new_node->process_id_number = 0;
+		new_node->process_id_number = new_id_number;
 		new_node->process_status = READY;
-		new_node->next_node = NULL;
 		new_node->process_stack_pointer = __create_process_stack(new_node->process_stack, function_pointer);
 
-		process_count++;
+		if (__head == NULL) {
+			new_node->next_node = NULL;
+			__head = new_node;
+		} else {
+			new_node->next_node = __head;
+			__head = new_node;
+		}
 
-		return new_node->process_id_number;
+		process_count++;
+		new_id_number++;
+
+		return new_id_number;
 	} else {
 		return -1;
 	};
 }
 
 void execute_process(unsigned int node_id_number) {
+	printf("KERNEL: Executing Process #%d \n", node_id_number);
 	process *current_node = __get_process_by_id_number(node_id_number);
 	
 	if (current_node->process_status == READY) {
-		current_node->process_status = EXECUTING;
+		//current_node->process_status = EXECUTING;
 		current_node->process_stack_pointer = __piccolo_pre_switch(current_node->process_stack_pointer);
 	};
 }
 
 void block_process(unsigned int node_id_number) {
+	printf("KERNEL: Blocking Process %d \n", node_id_number);
 	process *current_node = __get_process_by_id_number(node_id_number);
 	
 	if (current_node->process_status == (EXECUTING || READY)) {
@@ -89,6 +106,7 @@ void block_process(unsigned int node_id_number) {
 }
 
 void ready_process(unsigned int node_id_number) {
+	printf("KERNEL: Readying Process %d \n", node_id_number);
 	process *current_node = __get_process_by_id_number(node_id_number);
 
 	if (current_node->process_status == (EXECUTING || BLOCKED)) {
@@ -97,6 +115,7 @@ void ready_process(unsigned int node_id_number) {
 }
 
 void terminate_process(unsigned int node_id_number){
+	printf("KERNEL: Terminating Process %d \n", node_id_number);
 	process *current_node = __head;
 
 	if (node_id_number == current_node->next_node->process_id_number) {
@@ -111,45 +130,52 @@ void terminate_process(unsigned int node_id_number){
 }
 
 void __first_come_first_served_scheduler(void) {
-	__disable_preemption();
+	__enable_preemption(BERDOS_TIME_SLICE);
+	//__disable_preemption();
+	unsigned int i = 0;
 
-	unsigned int j_start = 0;
-	unsigned int j;
-	unsigned int i;
+	printf(" -3- DEBUG: Entering FCFS Scheduler \n");
+	printf("SCHEDULER: process_count %d \n", process_count);
 
-	for (i = 0; i > BERDOS_PROCESS_LIMIT; i++) {
-		for (j = j_start; j > BERDOS_PROCESS_LIMIT; j++) {
-			process *current_node = __get_process_by_id_number(j);
-			if (current_node->process_status = READY && current_node != NULL) {
-				j_start = j;
-				ready_queue[i] = j;
+	process *current_node = __head;
+	for (i = 0; i < process_count; i++) {
+		ready_queue[i] = (uint) NULL;
+		printf("SCHEDULER: i = %d \n",i);
+		while (current_node != NULL) {
+			if (current_node->process_status == READY) {
+				ready_queue[i] = current_node->process_id_number;
+				break;
 			};
+			current_node = current_node->next_node;
 		};
 	};
+	return NULL;
 }
 
 void __round_robin_scheduler(void) {
-		__enable_preemption(BERDOS_TIME_SLICE);
-		
+	__enable_preemption(BERDOS_TIME_SLICE);	
 }
 
 void __shortest_job_next_scheduler(void) {
-		__disable_preemption();
+	__disable_preemption();
 		
 }
 
 void __shortest_job_remaining_scheduler(void) {
-		__enable_preemption(BERDOS_TIME_SLICE);
+	__enable_preemption(BERDOS_TIME_SLICE);
 }
 
-void __scheduler(schedulers schedulering_dicipline) {
-	// do stuff to ready queue
-
-	switch (scheduling_dicipline) {
+void __scheduler(schedulers dicipline) {
+	printf(" -2- DEBUG: Entering Scheduler \n");
+	switch (dicipline) {
 		case FIRST_COME_FIRST_SERVED:
+			printf(" -2.1- DEBUG: Scheduler Case 1 \n");
+			printf("KERNEL: FIRST_COME_FIRST_SERVED Scheduling Enforced \n");
 			__first_come_first_served_scheduler();
 			break;
 		case ROUND_ROBIN:
+			printf(" -2.2- DEBUG: Scheduler Case 2 \n");
+			printf("KERNEL: ROUND_ROBIN Scheduling Enforced \n");
 			__round_robin_scheduler();
 			break;
 		case SHORTEST_JOB_NEXT:
@@ -162,20 +188,28 @@ void __scheduler(schedulers schedulering_dicipline) {
 }
 
 void __dispatcher(unsigned int node_id_number) {
+	printf("KERNEL: Dispacthing Process #%d \n", node_id_number);
+
 	unsigned int dummy[32];
-  __piccolo_task_init_stack(&dummy[32]);
-  blink2();
+  	__piccolo_task_init_stack(&dummy[32]);
+
 	execute_process(node_id_number);
+	//ready_process(node_id_number);
 }
 
 void kernel_initizalize(void) {
 	enum schedulers scheduling_dicipline = BERDOS_DEFAULT_SCHEDULER;
-	process *__head = NULL;
 	unsigned int process_count = 0;
+	unsigned int new_id_number = 0;
+
+	hw_set_bits((io_rw_32 *)(PPB_BASE + M0PLUS_SHPR2_OFFSET), M0PLUS_SHPR2_BITS);
+  	hw_set_bits((io_rw_32 *)(PPB_BASE + M0PLUS_SHPR3_OFFSET), M0PLUS_SHPR3_BITS);
 }
 
 void kernel_start(void) {
 	while (true) {
+		printf(" -1- DEBUG: Entering Start \n");
+		__disable_preemption();
 		__scheduler(scheduling_dicipline);
 		__dispatcher(ready_queue[0]);
 	}
