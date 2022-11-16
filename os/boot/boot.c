@@ -5,7 +5,7 @@
 
 #include <stdio.h>
 #include "pico/stdlib.h"
-#include "kernel/kernel.h"
+#include "../kernel/kernel.h"
 
 
 void blinker(unsigned int led_pin) {

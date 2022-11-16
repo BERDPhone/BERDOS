@@ -1,1 +1,0 @@
-set(SOURCES api.c ${YOUR_DIRECTORY}/api.h)

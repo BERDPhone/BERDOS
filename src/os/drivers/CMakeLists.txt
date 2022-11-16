@@ -1,1 +1,0 @@
-set(SOURCES ILI9488.c ${YOUR_DIRECTORY}/api.h)

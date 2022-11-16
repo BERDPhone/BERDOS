@@ -1,9 +1,8 @@
 add_subdirectory(api/)
-add_subdirectory(drivers/)
-add_subdirectory(helpers/)
+# add_subdirectory(drivers/)
 add_subdirectory(kernel/)
 
-add_executable(boot boot.c boot.h) 
+add_executable(boot boot/boot.c boot/boot.h) 
 
 set_target_properties(boot PROPERTIES COMPILE_FLAGS "-save-temps")
 
