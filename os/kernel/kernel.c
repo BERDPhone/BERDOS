@@ -3,6 +3,7 @@
 #include <stdarg.h>
 
 #include "kernel.h"
+#include "../boot/boot.h"
 
 #include "pico/stdlib.h"
 #include "hardware/structs/systick.h"
@@ -18,34 +19,41 @@ unsigned int *__piccolo_pre_switch(unsigned int *R0);
 // ### PROCESS -- DOUBLY LINKED LIST
 process *__head = NULL;
 process *__tail = NULL;
+process *__root = NULL;
 
 // ### PROCESS -- GLOBAL DATA STRUCUTRES/VARAIBLES
 unsigned int new_id_number;
 unsigned int process_count;
 enum schedulers scheduling_dicipline;
-unsigned int ready_queue[BERDOS_PROCESS_LIMIT];
+
+static unsigned int ready_queue[BERDOS_PROCESS_LIMIT];
+static unsigned int job_queue[BERDOS_PROCESS_LIMIT];
+static unsigned int device_queue[BERDOS_PROCESS_LIMIT];
+static unsigned int ready_queue_index;
+static unsigned int job_queue_index;
+static unsigned int device_queue_index;
 
 // # FUNCTION DECLARATIONS
 // ## PROCESS MANAGEMENT
 // ### PROCESS -- SYSTICK FUNCTIONS
 void __disable_preemption(void) {
-    systick_hw->csr = 0;    // Update Systick Control Status Register to Disable Timer and IRQ 
-    __dsb();                
-    __isb();                
+	systick_hw->csr = 0;    // Update Systick Control Status Register to Disable Timer and IRQ 
+	__dsb();                
+	__isb();                
 
-    // Clear Systick Exception Pending Bit
-    hw_set_bits  ((io_rw_32 *)(PPB_BASE + M0PLUS_ICSR_OFFSET),M0PLUS_ICSR_PENDSTCLR_BITS);
+	// Clear Systick Exception Pending Bit
+	hw_set_bits  ((io_rw_32 *)(PPB_BASE + M0PLUS_ICSR_OFFSET),M0PLUS_ICSR_PENDSTCLR_BITS);
 }
 
 void __enable_preemption(unsigned int time_slice_duration) {
 	__disable_preemption();
 
 	systick_hw->rvr = (time_slice_duration) - 1UL;    // Set Systick Reload Value Register
-    systick_hw->cvr = 0;   			// Set Systick Current Value Register; Clear Current Value
-    systick_hw->csr = 0x03; 		// Set Systick Control Status Register; Enable IRQ and Clock
+	systick_hw->cvr = 0;   			// Set Systick Current Value Register; Clear Current Value
+	systick_hw->csr = 0x03; 		// Set Systick Control Status Register; Enable IRQ and Clock
 }
 
-
+// ### PROCESS -- UTILITY FUNCTIONS
 process *__get_process_by_id_number(unsigned int node_id_number) {
 	process *current_node = __head;
 	while (current_node != NULL) {
@@ -57,51 +65,58 @@ process *__get_process_by_id_number(unsigned int node_id_number) {
 	return NULL;
 }
 
-// ### PROCESS -- STATE CHANGING
-unsigned int *__create_process_stack(unsigned int *process_stack, void (*function_pointer)(void), uint parameter_count, int *starting_arguments) {
-	uint i;
-	process_stack += BERDOS_STACK_SIZE - 17; /* End of task_stack, minus what we are about to push */
-  	process_stack[8] = (unsigned int) 0xFFFFFFFD; // EXC_RETURN in LR
-  	process_stack[15] = (unsigned int) function_pointer; // Function Pointer in PC
-  	process_stack[16] = (unsigned int) 0x01000000; // Thumb Bit in EPSR
-  	for (i = 0; i < parameter_count; i++) {
-  		process_stack[9] = (unsigned int) starting_arguments[0]; // Argument 0 in R0
-  		process_stack[10] = (unsigned int) starting_arguments[1]; // Argument 1 in R1
-  		process_stack[11] = (unsigned int) starting_arguments[2]; // Arugment 2 in R2
-  		process_stack[12] = (unsigned int) starting_arguments[3]; // Arugment 3 in R2
-  	};
-
-  	return process_stack;
+process *__get_executing_process(void) {
+	process *current_node = __head;
+	while (current_node != NULL) {
+		if (current_node->process_status == EXECUTING) {
+			return current_node;
+		};
+		current_node = current_node->next_node;
+	};
+	return NULL;
 }
 
-unsigned int create_process(void (*function_pointer)(), unsigned int parameter_count, ...) {
-	printf("KERNEL: Creating Process %d \n", new_id_number);
-	
-	if (parameter_count > 4) {
-		int parameter_count = 4; 
-		printf("WARNING: Too Many Arguments \n");
+process *__get_parent_process(process *child_process) {
+	process *current_node = __head;
+	while (current_node != NULL) {
+		if (current_node->child_node == child_process) {
+			return current_node;
+		};
+		if (current_node->sibling_node == child_process) {
+			return __get_parent_process(current_node);
+		};
+		current_node = current_node->next_node;
 	};
-	int starting_arguments[parameter_count];
+	return NULL;
+}
 
-	uint i;
-	va_list args;
-	va_start(args, parameter_count);
-	for (i = 0; i <= parameter_count - 1; i++) {
-		starting_arguments[i] = va_arg(args, int);
+// ### PROCESS -- STATE CHANGING
+unsigned int create_process(void (*function_pointer)(), unsigned int *starting_arguments, process *parent_node) {
+	printf("KERNEL: Creating Process #%d \n", new_id_number);
+
+	if (process_count >= BERDOS_PROCESS_LIMIT) {
+		printf("ERROR!");
+		__asm__("BKPT");
 	};
-	va_end(args);
 
 	process *new_node = malloc(sizeof(process));
 	new_node->process_pointer = function_pointer;
 	new_node->process_id_number = new_id_number;
 	new_node->process_status = READY;
-	new_node->process_stack_pointer = __create_process_stack(new_node->process_stack, function_pointer, parameter_count, starting_arguments);
+	new_node->process_stack[(BERDOS_STACK_SIZE - 17) + 8] = (unsigned int) 0xFFFFFFFD; // EXC_RETURN in LR
+  	new_node->process_stack[(BERDOS_STACK_SIZE - 17) + 15] = (unsigned int) function_pointer; // Function Pointer in PC
+  	new_node->process_stack[(BERDOS_STACK_SIZE - 17) + 16] = (unsigned int) 0x01000000; // Thumb Bit in EPSR
+  	new_node->process_stack[(BERDOS_STACK_SIZE - 17) + 9] = (unsigned int) starting_arguments[0]; // Argument 0 in R0
+  	new_node->process_stack[(BERDOS_STACK_SIZE - 17) + 10] = (unsigned int) starting_arguments[1]; // Argument 1 in R1
+  	new_node->process_stack[(BERDOS_STACK_SIZE - 17) + 11] = (unsigned int) starting_arguments[2]; // Arugment 2 in R2
+  	new_node->process_stack[(BERDOS_STACK_SIZE - 17) + 12] = (unsigned int) starting_arguments[3]; // Arugment 3 in R2
+	new_node->process_stack_pointer = new_node->process_stack + BERDOS_STACK_SIZE - 17;
 
 	if (__tail == NULL && __head == NULL) {
 		new_node->next_node = NULL;
-		__tail = new_node;
 		new_node->previous_node = NULL;
 		__head = new_node;
+		__tail = new_node;
 	} else {
 		new_node->previous_node = __tail;
 		new_node->previous_node->next_node = new_node;
@@ -109,46 +124,62 @@ unsigned int create_process(void (*function_pointer)(), unsigned int parameter_c
 		__tail = new_node;
 	};
 
+	new_node->child_node = NULL;
+	new_node->sibling_node = NULL;
+	if (__root != NULL) {
+		if (parent_node->child_node == NULL) {
+			parent_node->child_node = new_node;
+		} else {
+			if (parent_node->child_node->sibling_node == NULL) {
+				parent_node->child_node->sibling_node = new_node;
+			} else {
+				new_node->sibling_node = parent_node->child_node->sibling_node;
+				parent_node->child_node->sibling_node = new_node;
+			};
+		};
+	} else {
+		__root = new_node;
+	};
+
+	job_queue[job_queue_index] = new_id_number;
+	job_queue_index++;
+
 	process_count++;
 	new_id_number++;
 
 	return new_node->process_id_number;
 }
 
-void execute_process(unsigned int node_id_number) {
-	printf("KERNEL: Executing Process #%d \n", node_id_number);
-	process *current_node = __get_process_by_id_number(node_id_number);
-	
-	if (current_node->process_status == (READY || EXECUTING)) {
-		//current_node->process_status = EXECUTING;
-		current_node->process_stack_pointer = __piccolo_pre_switch(current_node->process_stack_pointer);
-	};
-}
-
-void block_process(unsigned int node_id_number) {
-	printf("KERNEL: Blocking Process %d \n", node_id_number);
-	process *current_node = __get_process_by_id_number(node_id_number);
-	
-	if (current_node->process_status == (EXECUTING || READY)) {
-		current_node->process_status = BLOCKED;
-	};
-}
-
-void ready_process(unsigned int node_id_number) {
-	printf("KERNEL: Readying Process %d \n", node_id_number);
+void terminate_process(unsigned int node_id_number, process *parent_node){
+	printf("KERNEL: Terminating Process #%d \n", node_id_number);
 	process *current_node = __get_process_by_id_number(node_id_number);
 
-	if (current_node->process_status == (EXECUTING || BLOCKED)) {
-		current_node->process_status = READY;
-	};
-}
+	current_node->process_status = TERMINATED;
 
-void terminate_process(unsigned int node_id_number){
-	printf("KERNEL: Terminating Process %d \n", node_id_number);
-	process *current_node = __get_process_by_id_number(node_id_number);
-
-	if (true) {
-		current_node->process_status = TERMINATED;
+	uint i;
+	uint j;
+	for (i = 0; i < BERDOS_PROCESS_LIMIT; i++) {
+		if (job_queue[i] == node_id_number) {
+			for (j = i; j < BERDOS_PROCESS_LIMIT; j++) {
+				job_queue[j] = job_queue[j + 1];
+			};
+			job_queue[BERDOS_PROCESS_LIMIT - 1] = 0;
+			job_queue_index--;
+		};
+		if (ready_queue[i] == node_id_number) {
+			for (j = i; j < BERDOS_PROCESS_LIMIT; j++) {
+				ready_queue[j] = ready_queue[j + 1];
+			};
+			ready_queue[BERDOS_PROCESS_LIMIT - 1] = 0;
+			ready_queue_index--;
+		};
+		if (device_queue[i] == node_id_number) {
+			for (j = i; j < BERDOS_PROCESS_LIMIT; j++) {
+				device_queue[j] = device_queue[j + 1];
+			};
+			device_queue[BERDOS_PROCESS_LIMIT - 1] = 0;
+			device_queue_index--;
+		};
 	};
 
 	current_node->previous_node->next_node = current_node->next_node;
@@ -160,7 +191,59 @@ void terminate_process(unsigned int node_id_number){
 		__tail = current_node->previous_node;
 	};
 
+	if (parent_node->child_node == current_node) {
+		parent_node->child_node = current_node->sibling_node;
+	} else {
+		process *previous_sibling = parent_node->child_node;
+		if (previous_sibling->sibling_node != current_node) {
+			previous_sibling = previous_sibling->sibling_node;
+		};
+		previous_sibling->sibling_node = current_node->sibling_node;
+	};
+	while (current_node->child_node != NULL) {
+		terminate_process(current_node->child_node->process_id_number, current_node);
+	};
+
+	free(current_node);
+
 	process_count--;
+}
+
+void __execute_process(unsigned int node_id_number) {
+	printf("KERNEL: Executing Process #%d \n", node_id_number);
+	process *current_node = __get_process_by_id_number(node_id_number);
+	
+	if (current_node->process_status == EXECUTING || current_node->process_status == READY) {
+		current_node->process_status = EXECUTING;
+		current_node->process_stack_pointer = __piccolo_pre_switch(current_node->process_stack_pointer);
+	} else {
+		printf("ERROR!");
+		__asm__("BKPT");
+	};
+}
+
+void __block_process(unsigned int node_id_number) {
+	printf("KERNEL: Blocking Process #%d \n", node_id_number);
+	process *current_node = __get_process_by_id_number(node_id_number);
+	
+	if (current_node->process_status == EXECUTING || current_node->process_status == READY) {
+		current_node->process_status = BLOCKED;
+	} else {
+		printf("ERROR!");
+		__asm__("BKPT");
+	};
+}
+
+void __ready_process(unsigned int node_id_number) {
+	printf("KERNEL: Readying Process #%d \n", node_id_number);
+	process *current_node = __get_process_by_id_number(node_id_number);
+
+	if (current_node->process_status == EXECUTING || current_node->process_status == BLOCKED) {
+		current_node->process_status = READY;
+	} else {
+		printf("ERROR!");
+		__asm__("BKPT");
+	};
 }
 
 // ### PROCESS -- SCHEDULING
@@ -173,6 +256,7 @@ void __first_come_first_served_scheduler(void) {
 		for (i = 0; i < process_count; i++) {
 			if (current_node->process_status == READY) {
 				ready_queue[i] = current_node->process_id_number;
+				ready_queue_index++;
 			};
 			current_node = current_node->next_node;
 		};
@@ -180,30 +264,31 @@ void __first_come_first_served_scheduler(void) {
 }
 
 void __round_robin_scheduler(void) {
-	__enable_preemption(BERDOS_TIME_SLICE);	
+	__first_come_first_served_scheduler();
 
-	uint i;
-	process *current_node = __head;
-	while (current_node != NULL) {
-		for (i = 0; i < process_count; i++) {
-			if (current_node->process_status == READY) {
-				ready_queue[i] = current_node->process_id_number;
-			};
-			current_node = current_node->next_node;
-		};
-	};
+	__enable_preemption(BERDOS_TIME_SLICE);
 }
 
 void __shortest_job_next_scheduler(void) {
-	//__disable_preemption();
-		
+	__first_come_first_served_scheduler();
+
+	//__bubble_sort(ready_queue);
+
+	__disable_preemption();
 }
 
 void __shortest_job_remaining_scheduler(void) {
-	//__enable_preemption(BERDOS_TIME_SLICE);
+	__shortest_job_next_scheduler();
+
+	__enable_preemption(BERDOS_TIME_SLICE);
 }
 
-void __long_term_scheduler(void) {}
+void __long_term_scheduler(void) {
+	if (process_count == 0) {
+		printf("ERROR!");
+		__asm__("BKPT");
+	};
+}
 
 void __short_term_scheduler(schedulers selected_dicipline) {
 	switch (selected_dicipline) {
@@ -219,14 +304,19 @@ void __short_term_scheduler(schedulers selected_dicipline) {
 		case SHORTEST_REMAINING_TIME_NEXT:
 			__shortest_job_remaining_scheduler();
 			break;
-		};
+	};
 }
 
 void __dispatcher(void) {
 	uint i;
 	for (i = 0; i < process_count; i++) {
-			unsigned int node_id_number = ready_queue[i];
-			execute_process(node_id_number);
+		unsigned int node_id_number = ready_queue[i];
+		__execute_process(node_id_number);
+		if (__get_process_by_id_number(node_id_number) != NULL) {
+			__ready_process(node_id_number);
+		} else {
+			return;
+		};
 	};
 }
 
@@ -242,13 +332,31 @@ void kernel_initizalize(void) {
 
   	unsigned int dummy[32];
   	__piccolo_task_init_stack(&dummy[32]);
+
+  	unsigned int job_queue[] = {0};
+  	unsigned int ready_queue[] = {0};
+  	unsigned int device_queue[] = {0};
+
+  	ready_queue_index = 0;
+	job_queue_index = 0;
+	device_queue_index = 0;
 }
 
 void kernel_start(void) {
-	uint i;
 	while (true) {
-		//__long_term_scheduler();
+		__long_term_scheduler();
 		__short_term_scheduler(scheduling_dicipline);
 		__dispatcher();
 	};
+}
+
+// ### KERNEL - SYSTEM CALL HANDLERS
+void __exit(void) {
+	process *caller_process = __get_executing_process();
+	terminate_process(caller_process->process_id_number, __get_parent_process(caller_process));
+	return;
+}
+
+unsigned int __fork(void (*function_pointer)(), unsigned int *starting_arguments) {
+	return create_process(function_pointer, starting_arguments, __get_executing_process());
 }

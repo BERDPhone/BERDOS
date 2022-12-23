@@ -1,169 +1,171 @@
-/*
- * Copyright (C) 2021-2022 Gary Sims
- * Copyright (C) 2022 Keith Standiford
- * All rights reserved.
- * 
- * Portions copyright (C) 2017 Scott Nelson
- * Portions copyright (C) 2015-2018 National Cheng Kung University, Taiwan
- * Portions copyright (C) 2014-2017 Chris Stones
- *
- * SPDX-License-Identifier: BSD-3-Clause
- */
- 
 .thumb
 .syntax unified
 
+.local __svcall_0
+__svcall_0:
+    B .L3
+
+.local __svcall_1
+__svcall_1:
+    PUSH {R4}
+    MOV R4, LR
+    PUSH {R4}
+    MOV R4, R0
+    PUSH {R0-R3}
+
+    LDR R0, [R4]
+
+    BL __exit
+
+    POP {R0-R3}
+    POP {R4}
+    MOV LR, R4
+    POP {R4}
+
+    B .L3
+
+.local __svcall_2
+__svcall_2:
+    PUSH {R4}
+    MOV R4, LR
+    PUSH {R4}
+    MOV R4, R0
+    PUSH {R0-R3}
+
+    LDR R0, [R4]
+    LDR R1, [R4, #0x04]
+
+    BL __fork
+
+    STR R0, [R4]
+
+    POP {R0-R3}
+    POP {R4}
+    MOV LR, R4
+    POP {R4}
+
+    B .L3
+
 .type isr_svcall, %function
 .global isr_svcall
+isr_svcall:
+.L0:
+    MOVS R0, #0b100
+    MOV R1, LR
+    TST R0, R1
+    BEQ .L1
+
+    MRS R0, PSP
+    B .L2
+.L1:
+    MRS R0, MSP
+    B .L2
+.L2:
+    LDR R1, [R0, #0x18]
+    SUBS R1, #0x2
+    LDRB R1, [R1]
+
+    CMP R1, #0
+    BEQ __svcall_0
+    CMP R1, #1
+    BEQ __svcall_1
+    CMP R1, #2
+    BEQ __svcall_2
+.L3:
+    B .L4
+
 .type isr_systick, %function
 .global isr_systick
-isr_svcall:
 isr_systick:
-    mrs r0, psp
+    MRS R0, PSP
+.global svc_return
+.svc_return:
+.L4:
+    SUBS R0, #4
+    MOV R1, LR
+    STR R1, [R0]
 
-    /* Save r4, r5, r6, r7, and lr first
-    even though that isn't the stack order, as we need
-    to use those registers in a moment */
+    SUBS R0, #16
+    STMIA R0!, {R4-R7}
+    MOV R4, R8
+    MOV R5, R9
+    MOV R6, R10
+    MOV R7, R11
+    SUBS R0, #32
+    STMIA R0!, {R4-R7}
+    SUBS R0, #16 
 
-    subs r0, #4
-    mov r1, lr
-    str r1, [r0]
+    POP {R1-R5}
+    MOV R8, R1
+    MOV R9, R2
+    MOV R10, R3
+    MOV R11, R4
+    MOV R12, R5
+    POP {R4-R7}       
 
-    subs r0, #16
-    stmia r0!, {r4,r5, r6, r7}
-    
-    mov r4, r8
-    mov r5, r9
-    mov r6, r10
-    mov r7, r11
-    subs r0, #32
-    stmia r0!, {r4,r5, r6, r7}
-    subs r0, #16 /* fix r0 to point to end of stack frame, 36 bytes from original r0 */
-
-    /* load kernel state from stack*/
-
-    /*
-    +------+
-    |  LR  |
-    |  R7  |
-    |  R6  |
-    |  R5  |
-    |  R4  |
-    |  R12 | NB: R12  (i.e IP which holds the PSR) is included, unlike user state
-    |  R11 |
-    |  R10 |
-    |  R9  |
-    |  R8  | <- POP from here
-    +------+
-    */
-
-    pop {r1, r2, r3, r4, r5}
-    mov r8, r1
-    mov r9, r2
-    mov r10, r3
-    mov r11, r4
-    mov r12, r5 /* r12 is ip */
-    pop {r4, r5, r6, r7}       
-
-    msr psr_nzcvq, ip
-
-    pop {pc}
+    MSR PSR_NZCVQ, IP
+    POP {PC}
 
 .global __piccolo_pre_switch
 __piccolo_pre_switch:
-    /* save kernel state */
-    /*
-    +------+
-    |  LR  |
-    |  R7  |
-    |  R6  |
-    |  R5  |
-    |  R4  |
-    |  R12 | NB: R12  (i.e IP) is included, unlike user state
-    |  R11 |
-    |  R10 |
-    |  R9  |
-    |  R8  | 
-    +------+
-    */
+    MRS IP, PSR
+    PUSH {R4-R7, LR}
+    MOV R1, R8
+    MOV R2, R9
+    MOV R3, R10
+    MOV R4, R11
+    MOV R5, R12
+    PUSH {R1-R5}    
 
-    mrs ip, psr
-    push {r4, r5, r6, r7, lr}
-    mov r1, r8
-    mov r2, r9
-    mov r3, r10
-    mov r4, r11
-    mov r5, r12
-    push {r1, r2, r3, r4, r5}    
+    LDMIA R0!,{R4-R7}
+    MOV R8, R4
+    MOV R9, R5
+    MOV R10, R6
+    MOV R11, R7
+    LDMIA R0!,{R4-R7}
+    LDMIA R0!,{R1}
+    MOV LR, R1
+    MSR PSP, R0
 
-    /* load user state */ 
-    /*
-    +------+
-    |  LR  |
-    |  R7  |
-    |  R6  |
-    |  R5  |
-    |  R4  |
-    |  R11 |
-    |  R10 |
-    |  R9  |
-    |  R8  | <- r0
-    +------+
-    */
-
-    ldmia   r0!,{r4-r7}
-    mov r8, r4
-    mov r9, r5
-    mov r10, r6
-    mov r11, r7
-    ldmia   r0!,{r4-r7}
-    ldmia   r0!,{r1}
-    mov lr, r1
-    msr psp, r0 /* r0 is usertask_stack_start from activate(usertask_stack_start); */
-
-    /* jump to user task */
-    bx lr
+    BX LR
 
 .global __piccolo_task_init_stack
 __piccolo_task_init_stack:
-    /* save kernel state */
-    /*
-    +------+
-    |  LR  |
-    |  R7  |
-    |  R6  |
-    |  R5  |
-    |  R4  |
-    |  R12 | NB: R12 (i.e IP which holds the PSR) is included, unlike user state
-    |  R11 |
-    |  R10 |
-    |  R9  |
-    |  R8  | 
-    +------+
-    */
+    MRS IP, PSR
+    PUSH {R4-R7, LR}
+    MOV R1, R8
+    MOV R2, R9
+    MOV R3, R10
+    MOV R4, R11
+    MOV R5, R12
+    PUSH {R1-R5}    
 
-    mrs ip, psr
-    push {r4, r5, r6, r7, lr}
-    mov r1, r8
-    mov r2, r9
-    mov r3, r10
-    mov r4, r11
-    mov r5, r12
-    push {r1, r2, r3, r4, r5}    
+    MSR PSP, R0
+    MOVS R0, #2
+    MSR CONTROL, R0
 
-    /* switch to process stack */
-    msr psp, r0
-    movs r0, #2
-    msr control, r0
-    isb
-    /* intentionally continue down into piccolo_syscall */
-    /* same as bl piccolo_syscall, if the code wasn't below */
+    ISB
 
-.global piccolo_yield
-.global piccolo_syscall
-piccolo_yield:
-piccolo_syscall:
-    nop
-    svc 0
-    nop
-    bx lr
+.align 2
+.global os_yield
+os_yield:
+    NOP
+    SVC 0
+    NOP
+    BX LR
+
+.align 2
+.global os_exit
+os_exit:
+    NOP
+    SVC 1
+    NOP
+    BX LR
+
+.align 2
+.global os_fork
+os_fork:
+    NOP
+    SVC 2
+    NOP
+    BX LR
