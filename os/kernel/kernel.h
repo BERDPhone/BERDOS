@@ -1,7 +1,7 @@
 #ifndef KERNEL_H
 #define KERNEL_H
 
-#define BERDOS_STACK_SIZE 256
+#define BERDOS_STACK_SIZE 64
 #define BERDOS_TIME_SLICE 10000
 #define BERDOS_PROCESS_LIMIT 5
 #define BERDOS_DEFAULT_SCHEDULER 0 // 0 = FIRST_COME_FIRST_SERVED, 1 = ROUND_ROBIN
@@ -15,19 +15,29 @@ typedef enum states {
 	BLOCKED,
 	EXECUTING,
 	CREATED,
+	SWAPPED_READY,
+	SWAPPED_BLOCKED,
 } states;
 
-typedef struct process {
+typedef struct address_space {
+	unsigned int text[BERDOS_STACK_SIZE];
+	unsigned int data[BERDOS_STACK_SIZE];
+	unsigned int heap[BERDOS_STACK_SIZE];
+	unsigned int stack[BERDOS_STACK_SIZE];
+	unsigned int *heap_pointer;
+	unsigned int *stack_pointer;
+} address_space;
+
+typedef struct control_block {
 void									(*process_pointer)(void);
-unsigned int 							process_stack[BERDOS_STACK_SIZE]; // Must be word-aligned.
-unsigned int 							process_id_number;
-enum 			states 					process_status;
-unsigned int							*process_stack_pointer;
-struct 			process					*next_node;
-struct    		process 				*previous_node;
-struct 			process 				*child_node;
-struct 			process 				*sibling_node;
-} process;
+unsigned int 							id_number;
+enum 			states 					status;
+struct 			address_space 			*address_space;
+struct 			control_block			*next_node;
+struct    		control_block 			*previous_node;
+struct 			control_block 			*child_node;
+struct 			control_block 			*sibling_node;
+} control_block;
 
 typedef enum schedulers {
 	FIRST_COME_FIRST_SERVED = 0,
@@ -39,10 +49,10 @@ typedef enum schedulers {
 // # FUNCTION DECLARATIONS
 // ## PROCESS MANAGEMENT
 // ### PROCESS -- STATE MANAGEMENT
-unsigned int create_process(void (*function_pointer)(), unsigned int *starting_arguments, process *parent_node);
-void terminate_process(unsigned int node_id_number, process *parent_node);
+unsigned int create_process(void (*function_pointer)(), unsigned int *starting_arguments, control_block *parent_node);
+void terminate_process(control_block *process, control_block *parent_node);
 
-process *__get_process_by_id_number(unsigned int node_id_number);
+control_block *__get_process_by_id_number(unsigned int node_id_number);
 
 
 // ## KERNEL OPERATION

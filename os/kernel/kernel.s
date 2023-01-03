@@ -106,8 +106,8 @@ isr_systick:
     MSR PSR_NZCVQ, IP
     POP {PC}
 
-.global __piccolo_pre_switch
-__piccolo_pre_switch:
+.global __context_switch
+__context_switch:
     MRS IP, PSR
     PUSH {R4-R7, LR}
     MOV R1, R8
@@ -129,8 +129,8 @@ __piccolo_pre_switch:
 
     BX LR
 
-.global __piccolo_task_init_stack
-__piccolo_task_init_stack:
+.global __initialize_main_stack
+__initialize_main_stack:
     MRS IP, PSR
     PUSH {R4-R7, LR}
     MOV R1, R8
