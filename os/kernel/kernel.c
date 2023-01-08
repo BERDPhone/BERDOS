@@ -12,37 +12,33 @@
 
 // # DATA & FUNCTION DECLARATIONS
 // ## MEMORY MANAGMENT
-unsigned int availiable_ram;
 unsigned int memory_utilization;
 
 // ## PROCESS MANAGEMENT
 // ### PROCESS -- FUNCTION DECLARATIONS
-void __initialize_main_stack(unsigned int *R0);
-unsigned int *__context_switch(unsigned int *R0);
+void __initialize_main_stack(unsigned int *MSP);
+unsigned int *__context_switch(unsigned int *PSP);
 
-// ### PROCESS -- DOUBLY LINKED LIST
+// ### PROCESS -- GLOBAL DATA STRUCUTRES/VARAIBLES
 control_block *__head = NULL;
 control_block *__tail = NULL;
 control_block *__root = NULL;
 
-// ### PROCESS -- GLOBAL DATA STRUCUTRES/VARAIBLES
-unsigned int new_id_number;
 unsigned int process_count;
 enum schedulers scheduling_dicipline;
 
-static control_block *ready_queue[BERDOS_PROCESS_LIMIT];
-static control_block *job_queue[BERDOS_PROCESS_LIMIT];
-static control_block *device_queue[BERDOS_PROCESS_LIMIT];
+static control_block *ready_queue[BERDOS_PROCESS_LIMIT] = {NULL};
+static control_block *job_queue[BERDOS_PROCESS_LIMIT] = {NULL};
+static control_block *device_queue[BERDOS_PROCESS_LIMIT] = {NULL};
 static unsigned int ready_queue_index;
 static unsigned int job_queue_index;
 static unsigned int device_queue_index;
 
-// # FUNCTION DECLARATIONS
+// # FUNCTION DEFINITIONS
 // ## MEMORY MANAGMENT
 void __swap_process_out(control_block *process) {
 	if (process->status != SWAPPED_READY || process->status != SWAPPED_BLOCKED) {
 		memory_utilization -= sizeof(address_space);
-		availiable_ram += sizeof(address_space);
 
 		if (process->status == READY) {
 			process->status = SWAPPED_READY;
@@ -55,7 +51,6 @@ void __swap_process_out(control_block *process) {
 void *__swap_process_in(control_block *process) {
 	if (process->status == SWAPPED_READY || process->status == SWAPPED_BLOCKED) {
 		memory_utilization += sizeof(address_space);
-		availiable_ram -= sizeof(address_space);
 
 		if (process->status == READY) {
 			process->status = SWAPPED_READY;
@@ -127,6 +122,8 @@ control_block *__get_parent_process(control_block *child_process) {
 
 // ### PROCESS -- STATE CHANGING
 unsigned int create_process(void (*function_pointer)(), unsigned int *starting_arguments, control_block *parent_process) {
+	static unsigned int new_id_number;
+
 	printf("KERNEL: Creating Process #%d \n", new_id_number);
 
 	if (process_count >= BERDOS_PROCESS_LIMIT) {
@@ -198,21 +195,21 @@ void terminate_process(control_block *process, control_block *parent_process){
 			for (uint j = i; j < BERDOS_PROCESS_LIMIT; j++) {
 				job_queue[j] = job_queue[j + 1];
 			};
-			job_queue[BERDOS_PROCESS_LIMIT - 1] = 0;
+			job_queue[BERDOS_PROCESS_LIMIT - 1] = NULL;
 			job_queue_index--;
 		};
 		if (ready_queue[i] == process) {
 			for (uint j = i; j < BERDOS_PROCESS_LIMIT; j++) {
 				ready_queue[j] = ready_queue[j + 1];
 			};
-			ready_queue[BERDOS_PROCESS_LIMIT - 1] = 0;
+			ready_queue[BERDOS_PROCESS_LIMIT - 1] = NULL;
 			ready_queue_index--;
 		};
 		if (device_queue[i] == process) {
 			for (uint j = i; j < BERDOS_PROCESS_LIMIT; j++) {
 				device_queue[j] = device_queue[j + 1];
 			};
-			device_queue[BERDOS_PROCESS_LIMIT - 1] = 0;
+			device_queue[BERDOS_PROCESS_LIMIT - 1] = NULL;
 			device_queue_index--;
 		};
 	};
@@ -293,30 +290,14 @@ void __ready_process(control_block *process) {
 }
 
 // ### PROCESS -- SCHEDULING
-void __first_come_first_served_scheduler(void) {
-	__disable_preemption();
-
-	uint i;
-	control_block *process = __head;
-	while (process != NULL) {
-		for (i = 0; i < process_count; i++) {
-			if (process->status == READY) {
-				ready_queue[i] = process;
-				ready_queue_index++;
-			};
-			process = process->next_node;
-		};
-	};
-}
-
-void __bubble_sort_ready_queue(size_t member_offset) {
-	for (uint i = 0; i < ready_queue_index - 1; i++) {
-		for (uint j = 0; j < ready_queue_index - i - 1; j++) {
-			if (((int *)(ready_queue[j]))[1] > ((int *)(ready_queue[j + 1]))[1]) {
+void __bubble_sort_queue(control_block *array[], unsigned int index, size_t member_offset) {
+	for (uint i = 0; i < index - 1; i++) {
+		for (uint j = 0; j < index - i - 1; j++) {
+			if (((int *)(array[j]))[(member_offset / 4)] > ((int *)(array[j + 1]))[(member_offset / 4)]) {
 				control_block *buffer;
-				buffer = ready_queue[j];
-				ready_queue[j] = ready_queue[j + 1];
-				ready_queue[j + 1] = buffer;
+				buffer = array[j];
+				array[j] = array[j + 1];
+				array[j + 1] = buffer;
 			};
 		};
 	};
@@ -353,11 +334,11 @@ void __medium_term_scheduler() {
 	switch (scheduling_dicipline) {
 		case FIRST_COME_FIRST_SERVED:
 			__disable_preemption();
-			__bubble_sort_ready_queue(offsetof(control_block, id_number));
+			__bubble_sort_queue(ready_queue, ready_queue_index, offsetof(control_block, id_number));
 			break;
 		case ROUND_ROBIN:
 			__enable_preemption(BERDOS_TIME_SLICE);
-			__bubble_sort_ready_queue(offsetof(control_block, id_number));
+			__bubble_sort_queue(ready_queue, ready_queue_index, offsetof(control_block, id_number));
 			break;
 		case SHORTEST_JOB_NEXT:
 			__disable_preemption();
@@ -369,11 +350,11 @@ void __medium_term_scheduler() {
 			break;
 	};
 
-	for (uint i = 0; memory_utilization > availiable_ram && i < device_queue_index; i++) {
+	for (uint i = 0; memory_utilization > PICO_SRAM_SIZE && i < device_queue_index; i++) {
 		__swap_process_out(device_queue[i]);
 	};
 
-	for (uint i = ready_queue_index; memory_utilization > availiable_ram && i >= 0; i--) {
+	for (uint i = ready_queue_index; memory_utilization > PICO_SRAM_SIZE && i >= 0; i--) {
 		__swap_process_out(ready_queue[i]);
 	};
 
@@ -403,7 +384,6 @@ void __long_term_scheduler(void) {
 // ### KERNEL - START-UP
 void kernel_initizalize(void) {
 	process_count = 0;
-	new_id_number = 0;
 	scheduling_dicipline = BERDOS_DEFAULT_SCHEDULER;
 
 	hw_set_bits((io_rw_32 *)(PPB_BASE + M0PLUS_SHPR2_OFFSET), M0PLUS_SHPR2_BITS);
@@ -412,15 +392,14 @@ void kernel_initizalize(void) {
   	unsigned int dummy[32];
   	__initialize_main_stack(&dummy[32]);
 
-  	control_block *job_queue[] = {NULL};
-  	control_block *ready_queue[] = {NULL};
-  	control_block *device_queue[] = {NULL};
+  	__head = NULL;
+	__tail = NULL;
+	__root = NULL;
 
   	ready_queue_index = 0;
 	job_queue_index = 0;
 	device_queue_index = 0;
 
-	availiable_ram = 264000;
 	memory_utilization = 0;
 }
 
@@ -439,6 +418,6 @@ void __exit(void) {
 	return;
 }
 
-unsigned int __fork(void (*function_pointer)(), unsigned int *starting_arguments) {
+unsigned int __spawn(void (*function_pointer)(), unsigned int *starting_arguments) {
 	return create_process(function_pointer, starting_arguments, __get_executing_process());
 }

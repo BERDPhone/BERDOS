@@ -1,6 +1,8 @@
 #ifndef KERNEL_H
 #define KERNEL_H
 
+#define PICO_SRAM_SIZE 246000
+
 #define BERDOS_STACK_SIZE 64
 #define BERDOS_TIME_SLICE 10000
 #define BERDOS_PROCESS_LIMIT 5
@@ -63,6 +65,7 @@ void kernel_start(void);
 // ## KERNEL -- SYSTEM CALLS
 void os_yield(void);
 void os_exit(void);
-unsigned int os_fork(void (*function_pointer)(), unsigned int *starting_arguments);
+unsigned int os_spawn(void (*function_pointer)(), unsigned int *starting_arguments);
+
 
 #endif

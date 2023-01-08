@@ -28,7 +28,7 @@ void hi(void) {
 }
 
 void hello(void) {
-    unsigned int pidn = os_fork(&hi, NULL);
+    unsigned int pidn = os_spawn(&hi, NULL);
     while (true) {
         printf("HELLO!\n");
         os_yield();

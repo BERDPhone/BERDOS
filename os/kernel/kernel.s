@@ -35,7 +35,7 @@ __svcall_2:
     LDR R0, [R4]
     LDR R1, [R4, #0x04]
 
-    BL __fork
+    BL __spawn
 
     STR R0, [R4]
 
@@ -78,8 +78,6 @@ isr_svcall:
 .global isr_systick
 isr_systick:
     MRS R0, PSP
-.global svc_return
-.svc_return:
 .L4:
     SUBS R0, #4
     MOV R1, LR
@@ -163,8 +161,8 @@ os_exit:
     BX LR
 
 .align 2
-.global os_fork
-os_fork:
+.global os_spawn
+os_spawn:
     NOP
     SVC 2
     NOP
