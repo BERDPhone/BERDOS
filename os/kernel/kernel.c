@@ -11,8 +11,9 @@
 #include "malloc.h"
 
 // # DATA & FUNCTION DECLARATIONS
-// ## MEMORY MANAGMENT
+// ## MEMORY MANAGEMENT
 unsigned int memory_utilization;
+enum bitmap_partition bitmap[(PICO_SRAM_SIZE / BERDOS_PARTITION_SIZE)] = {UNALLOCATED};
 
 // ## PROCESS MANAGEMENT
 // ### PROCESS -- FUNCTION DECLARATIONS
@@ -20,12 +21,12 @@ void __initialize_main_stack(unsigned int *MSP);
 unsigned int *__context_switch(unsigned int *PSP);
 
 // ### PROCESS -- GLOBAL DATA STRUCUTRES/VARAIBLES
+unsigned int process_count;
+enum schedulers scheduling_dicipline;
+
 control_block *__head = NULL;
 control_block *__tail = NULL;
 control_block *__root = NULL;
-
-unsigned int process_count;
-enum schedulers scheduling_dicipline;
 
 static control_block *ready_queue[BERDOS_PROCESS_LIMIT] = {NULL};
 static control_block *job_queue[BERDOS_PROCESS_LIMIT] = {NULL};
@@ -35,22 +36,97 @@ static unsigned int job_queue_index;
 static unsigned int device_queue_index;
 
 // # FUNCTION DEFINITIONS
-// ## MEMORY MANAGMENT
-void __swap_process_out(control_block *process) {
+// ## DIAGNOSTICS
+void __print_diagnostics() {
+	printf("******************************************************************\n");
+	printf("DIAGNOSTICS:\n");
+	printf("Bitmap: @0x%X\n",  memory_utilization);
+	for (uint j = 0; j < (PICO_SRAM_SIZE / BERDOS_PARTITION_SIZE); j += 66) {
+		for (uint i = j; i < j + 66; i++) {
+			printf("%d", bitmap[i]);
+		};
+		printf("\n");
+	};
+	printf("Job Queue: ");
+	for (uint i = 0; i < job_queue_index; i++) {
+		printf("#%d ", job_queue[i]->id_number);
+	};
+	printf("\n");
+	printf("Ready Queue: ");
+	for (uint i = 0; i < ready_queue_index; i++) {
+		printf("#%d ", ready_queue[i]->id_number);
+	};
+	printf("\n");
+	printf("Device Queue: ");
+	for (uint i = 0; i < device_queue_index; i++) {
+		printf("#%d ", device_queue[i]->id_number);
+	};
+	printf("\n");
+	printf("Process Table:\n");
+	control_block *process = __head;
+	while (process != NULL) {
+		printf(" * Process #%d @0x%X §%d\n", process->id_number, process, process->status);
+		process = process->next_node;
+	};
+	printf("******************************************************************\n");
+}
+
+// ## MEMORY MANAGEMENT
+// ### MEMORY -- ALLOCATION/DEALLOCATION FUNCTIONS
+void *__allocate_SRAM(size_t size, enum bitmap_partition data_type) {
+	if (size < BERDOS_PARTITION_SIZE) size = BERDOS_PARTITION_SIZE;
+	size += (size * (size % BERDOS_PARTITION_SIZE));
+
+	for (uint i = 0; i < (PICO_SRAM_SIZE / BERDOS_PARTITION_SIZE); i++) {
+		uint sum = 0;
+		for (uint j = i; j < (i + (size / BERDOS_PARTITION_SIZE)); j++) {
+			sum += bitmap[j];
+		};
+		if (sum == 0) {
+			for (uint k = i; k < (i + (size / BERDOS_PARTITION_SIZE)); k++) {
+				bitmap[k] = data_type;
+			};
+			memory_utilization += size;
+			return (void *)((i * BERDOS_PARTITION_SIZE) + PICO_SRAM_BASE);
+		};
+	};
+	return NULL;
+}
+
+void *__deallocate_SRAM(void *pointer, size_t size) {
+	if (pointer == NULL) return pointer;
+	if (size < BERDOS_PARTITION_SIZE) size = BERDOS_PARTITION_SIZE;
+	size += (size * (size % BERDOS_PARTITION_SIZE));
+
+	unsigned int bitmap_index = ((uint)(pointer - PICO_SRAM_BASE) / BERDOS_PARTITION_SIZE);
+	for (uint i = bitmap_index; i < (bitmap_index + (size / BERDOS_PARTITION_SIZE)); i++) {
+		bitmap[i] = UNALLOCATED;
+	};
+	memory_utilization -= size;
+
+	return NULL;
+};
+
+// ### MEMORY -- HIERARCHY SWAPPING
+void *__swap_process_out(control_block *process) {
 	if (process->status != SWAPPED_READY || process->status != SWAPPED_BLOCKED) {
-		memory_utilization -= sizeof(address_space);
+		process->address_space = __deallocate_SRAM(process->address_space, sizeof(address_space));
 
 		if (process->status == READY) {
 			process->status = SWAPPED_READY;
 		} else if (process->status == BLOCKED) {
 			process->status = SWAPPED_BLOCKED;
 		};
+
+		return NULL;
+	} else {
+		return process->address_space;
 	};
 }
 
 void *__swap_process_in(control_block *process) {
 	if (process->status == SWAPPED_READY || process->status == SWAPPED_BLOCKED) {
-		memory_utilization += sizeof(address_space);
+		process->address_space = __allocate_SRAM(sizeof(address_space), PROCESS_ADDRESS_SPACE);
 
 		if (process->status == READY) {
 			process->status = SWAPPED_READY;
@@ -67,20 +143,20 @@ void *__swap_process_in(control_block *process) {
 // ## PROCESS MANAGEMENT
 // ### PROCESS -- SYSTICK FUNCTIONS
 void __disable_preemption(void) {
-	systick_hw->csr = 0;    // Update Systick Control Status Register to Disable Timer and IRQ 
+	systick_hw->csr = 0;	// Update Systick Control Status Register to Disable Timer and IRQ 
 	__dsb();                
 	__isb();                
 
 	// Clear Systick Exception Pending Bit
-	hw_set_bits  ((io_rw_32 *)(PPB_BASE + M0PLUS_ICSR_OFFSET),M0PLUS_ICSR_PENDSTCLR_BITS);
+	hw_set_bits((io_rw_32 *)(PPB_BASE + M0PLUS_ICSR_OFFSET),M0PLUS_ICSR_PENDSTCLR_BITS);
 }
 
 void __enable_preemption(unsigned int time_slice_duration) {
 	__disable_preemption();
 
-	systick_hw->rvr = (time_slice_duration) - 1UL;    // Set Systick Reload Value Register
-	systick_hw->cvr = 0;   			// Set Systick Current Value Register; Clear Current Value
-	systick_hw->csr = 0x03; 		// Set Systick Control Status Register; Enable IRQ and Clock
+	systick_hw->rvr = (time_slice_duration) - 1UL;	// Set Systick Reload Value Register
+	systick_hw->cvr = 0;							// Set Systick Current Value Register; Clear Current Value
+	systick_hw->csr = 0x03;							// Set Systick Control Status Register; Enable IRQ and Clock
 }
 
 // ### PROCESS -- UTILITY FUNCTIONS
@@ -123,16 +199,15 @@ control_block *__get_parent_process(control_block *child_process) {
 // ### PROCESS -- STATE CHANGING
 unsigned int create_process(void (*function_pointer)(), unsigned int *starting_arguments, control_block *parent_process) {
 	static unsigned int new_id_number;
-
 	printf("KERNEL: Creating Process #%d \n", new_id_number);
 
-	if (process_count >= BERDOS_PROCESS_LIMIT) {
-		printf("ERROR!");
-		__asm__("BKPT");
-	};
+	if (process_count >= BERDOS_PROCESS_LIMIT) panic("ERROR: Control Block Overflow\n");
 
 	control_block *new_process = malloc(sizeof(control_block));
-	new_process->address_space = malloc(sizeof(address_space));
+	if (new_process == NULL) panic("ERROR: Malloc Failed\n");
+	new_process->address_space = __allocate_SRAM(sizeof(address_space), PROCESS_ADDRESS_SPACE);
+	if (new_process->address_space == NULL) panic("ERROR: SRAM Allocation Failed\n");
+
 	new_process->process_pointer = function_pointer;
 	new_process->id_number = new_id_number;
 	new_process->status = CREATED;
@@ -236,8 +311,8 @@ void terminate_process(control_block *process, control_block *parent_process){
 		terminate_process(process->child_node, process);
 	};
 
+	process->address_space = __deallocate_SRAM(process->address_space, sizeof(address_space));
 	free(process);
-	free(process->address_space);
 
 	process_count--;
 }
@@ -248,9 +323,6 @@ void __execute_process(control_block *process) {
 	if (process->status == READY) {
 		process->status = EXECUTING;
 		process->address_space->stack_pointer = __context_switch(process->address_space->stack_pointer);
-	} else {
-		printf("ERROR!");
-		__asm__("BKPT");
 	};
 }
 
@@ -269,9 +341,6 @@ void __block_process(control_block *process) {
 				ready_queue_index--;
 			};
 		};
-	} else {
-		printf("ERROR!");
-		__asm__("BKPT");
 	};
 }
 
@@ -283,9 +352,6 @@ void __ready_process(control_block *process) {
 		ready_queue_index++;
 
 		process->status = READY;
-	} else {
-		printf("ERROR!");
-		__asm__("BKPT");
 	};
 }
 
@@ -317,8 +383,7 @@ void __dispatcher(control_block *process) {
 			process->status = TERMINATED;
 			break;
 		default:
-			printf("UNEXPECTED PROCESS->STATUS\n");
-			__asm__("BKPT");
+			panic("ERROR: Unexpected Process Status\n");
 	};
 }
 
@@ -342,33 +407,30 @@ void __medium_term_scheduler() {
 			break;
 		case SHORTEST_JOB_NEXT:
 			__disable_preemption();
-			//__bubble_sort_ready_queue(offsetof(control_block, scheduling_parameter));
 			break;
 		case SHORTEST_REMAINING_TIME_NEXT:
 			__enable_preemption(BERDOS_TIME_SLICE);
-			//__bubble_sort_ready_queue(offsetof(control_block, scheduling_parameter));
 			break;
-	};
-
-	for (uint i = 0; memory_utilization > PICO_SRAM_SIZE && i < device_queue_index; i++) {
-		__swap_process_out(device_queue[i]);
-	};
-
-	for (uint i = ready_queue_index; memory_utilization > PICO_SRAM_SIZE && i >= 0; i--) {
-		__swap_process_out(ready_queue[i]);
 	};
 
 	for (uint i = 0; i <= ready_queue_index; i++) {
 		ready_queue[i]->address_space = __swap_process_in(ready_queue[i]);
+
+		for (uint j = 0; ready_queue[j]->address_space == NULL && j < device_queue_index; j++) {
+			device_queue[j]->address_space = __swap_process_out(device_queue[j]);
+			ready_queue[i]->address_space = __swap_process_in(ready_queue[i]);
+		};
+
+		for (uint j = ready_queue_index; ready_queue[i]->address_space == NULL && j >= 0; j--) {
+			ready_queue[j]->address_space = __swap_process_out(ready_queue[j]);
+			ready_queue[i]->address_space = __swap_process_in(ready_queue[i]);
+		};
 	};
 }
 
 void __long_term_scheduler(void) {
 	printf("KERNEL: Long-Term Scheduling\n");
-	if (process_count == 0) {
-		printf("ERROR!\n");
-		__asm__("BKPT");
-	};
+	if (process_count == 0) panic("ERROR:\n");
 
 	control_block *process = __head;
 	while (process != NULL) {
@@ -379,11 +441,11 @@ void __long_term_scheduler(void) {
 	};
 }
 
-
 // ## KERNEL OPERATION
 // ### KERNEL - START-UP
 void kernel_initizalize(void) {
 	process_count = 0;
+	memory_utilization = 0;
 	scheduling_dicipline = BERDOS_DEFAULT_SCHEDULER;
 
 	hw_set_bits((io_rw_32 *)(PPB_BASE + M0PLUS_SHPR2_OFFSET), M0PLUS_SHPR2_BITS);
@@ -392,6 +454,11 @@ void kernel_initizalize(void) {
   	unsigned int dummy[32];
   	__initialize_main_stack(&dummy[32]);
 
+  	void *os_heap = __allocate_SRAM((BERDOS_PARTITION_SIZE * 16), OPERATING_SYSTEM_DATA);
+	void *free = __allocate_SRAM((BERDOS_PARTITION_SIZE * 240), PROCESS_ADDRESS_SPACE);
+	void *os_stack = __allocate_SRAM((BERDOS_PARTITION_SIZE * 8), OPERATING_SYSTEM_DATA);
+	__deallocate_SRAM(free, (BERDOS_PARTITION_SIZE * 240));
+
   	__head = NULL;
 	__tail = NULL;
 	__root = NULL;
@@ -399,12 +466,11 @@ void kernel_initizalize(void) {
   	ready_queue_index = 0;
 	job_queue_index = 0;
 	device_queue_index = 0;
-
-	memory_utilization = 0;
 }
 
 void kernel_start(void) {
 	while (true) {
+		__print_diagnostics();
 		__long_term_scheduler();
 		__medium_term_scheduler();
 		__short_term_scheduler();

@@ -6,6 +6,7 @@
 #include <stdio.h>
 #include "pico/stdlib.h"
 #include "../kernel/kernel.h"
+#include "malloc.h"
 
 void blinker(unsigned int led_pin) {
     while (true) {
@@ -37,24 +38,24 @@ void hello(void) {
 }
 
 int main(void) {
-  stdio_init_all();
+    stdio_init_all();
 
-  sleep_ms(5000);
+    sleep_ms(5000);
 
-  printf("BOOT: Initializing Kernel \n");
-  kernel_initizalize();
+    printf("BOOT: Initializing Kernel \n");
+    kernel_initizalize();
 
-  printf("BOOT: Creating Processes \n");
-  unsigned int pid0 = create_process(&hello, NULL, NULL);
-  unsigned int arguments_1[4] = {LED_PIN_GREEN, 0, 0, 0};
-  unsigned int pid1 = create_process(&blinker, arguments_1, __get_process_by_id_number(0));
-  unsigned int arguments_2[4] = {LED_PIN_BLUE, 0, 0, 0};
-  unsigned int pid2 = create_process(&blinker, arguments_2, __get_process_by_id_number(0));
-  unsigned int arguments_3[4] = {LED_PIN_RED, 0, 0, 0};
-  unsigned int pid3 = create_process(&blinker, arguments_3, __get_process_by_id_number(0));
+    printf("BOOT: Creating Processes \n");
+    unsigned int pid0 = create_process(&hello, NULL, NULL);
+    unsigned int arguments_1[4] = {LED_PIN_GREEN, 0, 0, 0};
+    unsigned int pid1 = create_process(&blinker, arguments_1, __get_process_by_id_number(0));
+    unsigned int arguments_2[4] = {LED_PIN_BLUE, 0, 0, 0};
+    unsigned int pid2 = create_process(&blinker, arguments_2, __get_process_by_id_number(0));
+    unsigned int arguments_3[4] = {LED_PIN_RED, 0, 0, 0};
+    unsigned int pid3 = create_process(&blinker, arguments_3, __get_process_by_id_number(0));
 
-  printf("BOOT: Starting Kernel \n");
-  kernel_start();
+    printf("BOOT: Starting Kernel \n");
+    kernel_start();
 
-  return 0;
+    return 0;
 }
