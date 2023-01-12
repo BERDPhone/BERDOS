@@ -46,6 +46,49 @@ __svcall_2:
 
     B .L3
 
+.local __svcall_3
+__svcall_3:
+    PUSH {R4}
+    MOV R4, LR
+    PUSH {R4}
+    MOV R4, R0
+    PUSH {R0-R3}
+
+    LDR R0, [R4]
+    LDR R1, [R4, #0x04]
+
+    BL __mkdir
+
+    POP {R0-R3}
+    POP {R4}
+    MOV LR, R4
+    POP {R4}
+
+    B .L3
+
+.local __svcall_4
+__svcall_4:
+    PUSH {R4}
+    MOV R4, LR
+    PUSH {R4}
+    MOV R4, R0
+    PUSH {R0-R3}
+
+    LDR R0, [R4]
+    LDR R1, [R4, #0x04]
+    LDR R2, [R4, #0x08]
+
+    BL __create
+
+    STR R0, [R4]
+
+    POP {R0-R3}
+    POP {R4}
+    MOV LR, R4
+    POP {R4}
+
+    B .L3
+
 .type isr_svcall, %function
 .global isr_svcall
 isr_svcall:
@@ -71,6 +114,10 @@ isr_svcall:
     BEQ __svcall_1
     CMP R1, #2
     BEQ __svcall_2
+    CMP R1, #3
+    BEQ __svcall_3
+    CMP R1, #4
+    BEQ __svcall_4
 .L3:
     B .L4
 
@@ -165,5 +212,21 @@ os_exit:
 os_spawn:
     NOP
     SVC 2
+    NOP
+    BX LR
+
+.align 2
+.global os_mkdir
+os_mkdir:
+    NOP
+    SVC 3
+    NOP 
+    BX LR
+
+.align 2
+.global os_create
+os_create:
+    NOP
+    SVC 4
     NOP
     BX LR

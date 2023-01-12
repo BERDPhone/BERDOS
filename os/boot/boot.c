@@ -30,6 +30,8 @@ void hi(void) {
 
 void hello(void) {
     unsigned int pidn = os_spawn(&hi, NULL);
+    os_mkdir(":0", "/:)");
+    void *file = os_create("File", BERDOS_PARTITION_SIZE, "/:)/:0");
     while (true) {
         printf("HELLO!\n");
         os_yield();
@@ -46,13 +48,13 @@ int main(void) {
     kernel_initizalize();
 
     printf("BOOT: Creating Processes \n");
-    unsigned int pid0 = create_process(&hello, NULL, NULL);
+    control_block *pid0 = create_process(&hello, NULL, NULL);
     unsigned int arguments_1[4] = {LED_PIN_GREEN, 0, 0, 0};
-    unsigned int pid1 = create_process(&blinker, arguments_1, __get_process_by_id_number(0));
+    control_block *pid1 = create_process(&blinker, arguments_1, pid0);
     unsigned int arguments_2[4] = {LED_PIN_BLUE, 0, 0, 0};
-    unsigned int pid2 = create_process(&blinker, arguments_2, __get_process_by_id_number(0));
+    control_block *pid2 = create_process(&blinker, arguments_2, pid0);
     unsigned int arguments_3[4] = {LED_PIN_RED, 0, 0, 0};
-    unsigned int pid3 = create_process(&blinker, arguments_3, __get_process_by_id_number(0));
+    control_block *pid3 = create_process(&blinker, arguments_3, pid0);
 
     printf("BOOT: Starting Kernel \n");
     kernel_start();
