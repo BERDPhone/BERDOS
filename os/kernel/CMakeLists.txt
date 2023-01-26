@@ -9,6 +9,6 @@ add_library(kernel STATIC kernel.c kernel.s)
 install(TARGETS kernel DESTINATION lib)
 install(FILES kernel.h DESTINATION include)
 
-#set_target_properties(kernel PROPERTIES COMPILE_FLAGS "-save-temps")
+### set_target_properties(kernel PROPERTIES COMPILE_FLAGS "-save-temps")
 
 target_link_libraries(kernel pico_stdlib)

@@ -65,7 +65,7 @@ Only one process runs on one CPU at a time. However, context switching -- saving
 
 #### Scheduling
 
-An operating system's scheduler decides which process to run on a CPU before context switching to it. BERDOS implements scheduling policy through the `__long_term_scheduler()` `__medium_term_scheduler()`, and `__short_term_scheduler`.
+An operating system's scheduler decides which process to run on a CPU before context switching to it. BERDOS implements scheduling policy through the `__long_term_scheduler()` `__medium_term_scheduler()`, and `__short_term_scheduler()`.
 
 
 ### Memory Managment

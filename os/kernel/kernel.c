@@ -17,7 +17,7 @@ index_node *__root_directory = NULL;
 
 // ## MEMORY MANAGEMENT
 unsigned int memory_utilization;
-enum bitmap_partition bitmap[(PICO_SRAM_SIZE / BERDOS_PARTITION_SIZE)] = {UNALLOCATED};
+enum bitmap_partition bitmap[BERDOS_PARTITION_COUNT] = {UNALLOCATED};
 
 // ## PROCESS MANAGEMENT
 void __initialize_main_stack(unsigned int *MSP);
@@ -43,7 +43,7 @@ static void __print_diagnostics() {
 	printf("******************************************************************\n");
 	printf("DIAGNOSTICS:\n");
 	printf("Bitmap: @0x%X\n",  memory_utilization);
-	for (uint j = 0; j < (PICO_SRAM_SIZE / BERDOS_PARTITION_SIZE); j += 66) {
+	for (uint j = 0; j < BERDOS_PARTITION_COUNT; j += 66) {
 		for (uint i = j; i < j + 66; i++) {
 			printf("%d", bitmap[i]);
 		};
@@ -79,32 +79,32 @@ static void *__allocate_SRAM(size_t size, enum bitmap_partition data_type) {
 	if (size < BERDOS_PARTITION_SIZE) size = BERDOS_PARTITION_SIZE;
 	size += (size * (size % BERDOS_PARTITION_SIZE));
 
-	for (uint i = 0; i < (PICO_SRAM_SIZE / BERDOS_PARTITION_SIZE); i++) {
-		uint sum = 0;
-		for (uint j = i; j < (i + (size / BERDOS_PARTITION_SIZE)); j++) {
-			sum += bitmap[j];
-		};
-		if (sum == 0) {
-			for (uint k = i; k < (i + (size / BERDOS_PARTITION_SIZE)); k++) {
-				bitmap[k] = data_type;
-			};
-			memory_utilization += size;
-			return (void *)((i * BERDOS_PARTITION_SIZE) + PICO_SRAM_BASE);
-		};
+	void *malloc_pointer = malloc(size);
+	if (malloc_pointer == NULL) return NULL;
+
+	unsigned int bitmap_index = ((uint)(malloc_pointer - PICO_SRAM_BASE) / BERDOS_PARTITION_SIZE);
+
+	bitmap[bitmap_index] = FLAG;
+	for (uint i = bitmap_index + 1; i < bitmap_index + (size / BERDOS_PARTITION_SIZE); i++) {
+		if (bitmap[i] == MIXED) bitmap[i]++;
+		if (bitmap[i] == UNALLOCATED) bitmap[i] = data_type;	
 	};
-	return NULL;
+
+	memory_utilization += size;
+	return malloc_pointer;
 }
 
-static void *__deallocate_SRAM(void *pointer, size_t size) {
-	if (pointer == NULL) return pointer;
-	if (size < BERDOS_PARTITION_SIZE) size = BERDOS_PARTITION_SIZE;
-	size += (size * (size % BERDOS_PARTITION_SIZE));
-
+static void *__deallocate_SRAM(void *pointer) {
 	unsigned int bitmap_index = ((uint)(pointer - PICO_SRAM_BASE) / BERDOS_PARTITION_SIZE);
-	for (uint i = bitmap_index; i < (bitmap_index + (size / BERDOS_PARTITION_SIZE)); i++) {
-		bitmap[i] = UNALLOCATED;
+	if (bitmap[bitmap_index] != FLAG) return NULL;
+
+	free(pointer);
+
+	if (bitmap[bitmap_index] <= MIXED) {bitmap[bitmap_index] = UNALLOCATED;} else {bitmap[bitmap_index]--;};
+	for (uint i = bitmap_index + 1; bitmap[i] != FLAG && bitmap[i] != UNALLOCATED; i++) {
+		if (bitmap[i] <= MIXED) {bitmap[i] = UNALLOCATED;} else {bitmap[i]--;};
+		memory_utilization -= BERDOS_PARTITION_SIZE;
 	};
-	memory_utilization -= size;
 
 	return NULL;
 };
@@ -112,7 +112,7 @@ static void *__deallocate_SRAM(void *pointer, size_t size) {
 // ### MEMORY -- HIERARCHY SWAPPING
 static void *__swap_process_out(control_block *process) {
 	if (process->status != SWAPPED_READY || process->status != SWAPPED_BLOCKED) {
-		process->address_space = __deallocate_SRAM(process->address_space, sizeof(address_space));
+		process->address_space = __deallocate_SRAM(process->address_space);
 
 		if (process->status == READY) {
 			process->status = SWAPPED_READY;
@@ -142,6 +142,143 @@ static void *__swap_process_in(control_block *process) {
 	};
 }
 
+// ## FILE MANAGMENT
+// ### FILE -- UTILITY FUNCTIONS
+index_node *__parse_pathname(char *pathname) {
+	char buffer[BERDOS_MAX_PATHNAME_SIZE + 1];
+	strncpy(buffer, pathname, BERDOS_MAX_PATHNAME_SIZE + 1);
+
+	char *token, *token_save;
+	token = strtok_r(buffer, "/", &token_save);
+	token = strtok_r(NULL, "/", &token_save);
+	
+	index_node *inode = __root_directory;
+	while (token != NULL) {
+		if (inode->mode == FILE_INODE) return NULL;
+		inode = inode->child_node;
+		while (strncmp(inode->name, token, strlen(inode->name)) != 0) {
+			inode = inode->sibling_node;
+			if (inode == NULL) return NULL;
+		};
+		token = strtok_r(NULL, "/", &token_save);
+	};
+	return inode;
+}
+
+// ### FILE -- FILE OPERATIONS
+void *__create_file(char *file_name, size_t file_size, index_node *parent_directory) {
+	index_node *new_inode = (index_node *) __allocate_SRAM(sizeof(index_node), OPERATING_SYSTEM_DATA);
+	if (new_inode == NULL) panic("ERROR: SRAM Allocation Failed\n");
+	new_inode->file_pointer = (char *) __allocate_SRAM(file_size, TEXT_FILE);
+	if (new_inode->file_pointer == NULL) panic("ERROR: SRAM Allocation Faile\n");
+
+	strncpy(new_inode->name, file_name, BERDOS_INODE_NAME_SIZE);
+	new_inode->name[BERDOS_INODE_NAME_SIZE] = '\0';
+	new_inode->size = file_size;
+	new_inode->mode = FILE_INODE;
+
+	printf("KERNEL: Creating File \"%s\" @0x%X @ \"%s\"\n", new_inode->name, new_inode->file_pointer, parent_directory->name);
+
+	new_inode->parent_node = parent_directory;
+	new_inode->child_node = NULL;
+	new_inode->sibling_node = NULL;
+	if (__root_directory != NULL) {
+		if (parent_directory->child_node == NULL) {
+			parent_directory->child_node = new_inode;
+		} else {
+			if (parent_directory->child_node->sibling_node == NULL) {
+				parent_directory->child_node->sibling_node = new_inode;
+			} else {
+				index_node *youngest_sibling = parent_directory->child_node;
+				while (youngest_sibling->sibling_node != NULL) {
+					youngest_sibling = youngest_sibling->sibling_node;
+				};
+				youngest_sibling->sibling_node = new_inode;
+			};
+		};
+	} else {
+		panic("ERROR: Null Root Directory\n");
+	};
+}
+
+void __delete_file(index_node *file, index_node *parent_directory) {
+	printf("KERNEL: Deleting File \"%s\"\n", file->name);
+
+	if (file->mode == DIRECTORY_INODE) panic("ERROR: Pathname to Directory not File");
+
+	if (parent_directory->child_node == file) {
+		parent_directory->child_node = file->sibling_node;
+	} else {
+		index_node *previous_sibling = parent_directory->child_node;
+		while (previous_sibling->sibling_node != file) {
+			previous_sibling = previous_sibling->sibling_node;
+			if (previous_sibling == NULL) panic("ERROR: Bad Directory\n");
+		};
+		previous_sibling->sibling_node = file->sibling_node;
+	};
+
+	file->file_pointer = __deallocate_SRAM(file->file_pointer);
+	file = __deallocate_SRAM(file);
+}
+
+// ### FILE -- DIRECROTRY OPERATIONS
+void __create_directory(char *directory_name, index_node *parent_directory) {
+	index_node *new_inode = (index_node *) __allocate_SRAM(sizeof(index_node), OPERATING_SYSTEM_DATA);
+	if (new_inode == NULL) panic("ERROR: SRAM Allocation Failed\n");
+	
+	strncpy(new_inode->name, directory_name, BERDOS_INODE_NAME_SIZE);
+	new_inode->name[BERDOS_INODE_NAME_SIZE] = '\0';
+	new_inode->mode = DIRECTORY_INODE;
+	new_inode->file_pointer = NULL;
+
+	printf("KERNEL: Creating Directory \"%s\" @ \"%s\"\n", new_inode->name, parent_directory->name);
+
+	new_inode->parent_node = parent_directory;
+	new_inode->child_node = NULL;
+	new_inode->sibling_node = NULL;
+	if (__root_directory != NULL) {
+		if (parent_directory->child_node == NULL) {
+			parent_directory->child_node = new_inode;
+		} else {
+			if (parent_directory->child_node->sibling_node == NULL) {
+				parent_directory->child_node->sibling_node = new_inode;
+			} else {
+				new_inode->sibling_node = parent_directory->child_node->sibling_node;
+				parent_directory->child_node->sibling_node = new_inode;
+			};
+		};
+	} else {
+		__root_directory = new_inode;
+	};
+}
+
+void __delete_directory(index_node *directory, index_node *parent_directory) {
+	printf("KERNEL: Deleting Dirrectory \"%s\"\n", directory->name);
+
+	if (directory->mode == FILE_INODE) panic("ERROR: Pathname to File not Directory\n");
+
+	if (parent_directory->child_node == directory) {
+		parent_directory->child_node = directory->sibling_node;
+	} else {
+		index_node *previous_sibling = parent_directory->child_node;
+		while (previous_sibling->sibling_node != directory) {
+			previous_sibling = previous_sibling->sibling_node;
+			if (previous_sibling == NULL) panic("ERROR: Bad Directory\n");
+		};
+		previous_sibling->sibling_node = directory->sibling_node;
+	};
+
+	while (directory->child_node != NULL) {
+		if (directory->child_node->mode == FILE_INODE) {
+			__delete_file(directory->child_node, directory);
+		} else {
+			__delete_directory(directory, parent_directory);
+		};
+	};
+
+	directory = __deallocate_SRAM(directory);
+}
+
 // ## PROCESS MANAGEMENT
 // ### PROCESS -- SYSTICK FUNCTIONS
 static void __disable_preemption(void) {
@@ -161,107 +298,8 @@ static void __enable_preemption(unsigned int time_slice_duration) {
 	systick_hw->csr = 0x03;							// Set Systick Control Status Register; Enable IRQ and Clock
 }
 
-// ## FILE MANAGMENT
-// ### FILE -- UTILITY FUNCTIONS
-index_node *__parse_pathname(char *pathname) {
-	char buffer[BERDOS_MAX_PATHNAME_SIZE + 1];
-	strncpy(buffer, pathname, BERDOS_MAX_PATHNAME_SIZE + 1);
-
-	char target[BERDOS_INODE_NAME_SIZE + 1];
-	strncpy(target, strrchr(buffer, '/') + 1, strlen(target) + 1);
-
-	char *token;
-	token = strtok(buffer, "/");
-	if (token == NULL) return NULL;
-
-	index_node *inode = __root_directory;
-	while (strncmp(target, inode->name, strlen(target)) != 0) {
-		if (strncmp(token, inode->name, strlen(token)) != 0) {
-			inode = inode->child_node;
-			if (inode == NULL) return NULL;
-			while (strncmp(inode->name, token, strlen(inode->name)) != 0) {
-				inode = inode->sibling_node;
-				if (inode == NULL) return NULL;;
-			};
-		} else {
-			token = strtok(NULL, "/");
-		};
-	};
-	return inode;
-}
-
-// ### FILE -- DIRECROTRY OPERATIONS
-void __create_directory(char *directory_name, char *pathname) {
-	index_node *new_inode = malloc(sizeof(index_node));
-	if (new_inode == NULL) panic("ERROR: Malloc Failed\n");
-	new_inode->pointer = new_inode;
-	
-	strncpy(new_inode->name, directory_name, BERDOS_INODE_NAME_SIZE);
-	new_inode->name[BERDOS_INODE_NAME_SIZE] = '\0';
-	new_inode->size = 0;
-	new_inode->mode = DIRECTORY_NODE;
-
-	printf("KERNEL: Creating Directory \"%s\" @ \"%s\"\n", new_inode->name, pathname);
-	new_inode->child_node = NULL;
-	new_inode->sibling_node = NULL;
-	if (__root_directory != NULL) {
-		index_node *parent_directory = __parse_pathname(pathname);
-		if (parent_directory == NULL) panic("ERROR: Bad Pathname\n");
-		if (parent_directory->child_node == NULL) {
-			parent_directory->child_node = new_inode;
-		} else {
-			if (parent_directory->child_node->sibling_node == NULL) {
-				parent_directory->child_node->sibling_node = new_inode;
-			} else {
-				new_inode->sibling_node = parent_directory->child_node->sibling_node;
-				parent_directory->child_node->sibling_node = new_inode;
-			};
-		};
-	} else {
-		__root_directory = new_inode;
-	};
-}
-
-// ### FILE -- FILE OPERATIONS
-void *__create_file(char *file_name, size_t file_size, char *pathname) {
-	index_node *new_inode = malloc(sizeof(index_node));
-	if (new_inode == NULL) panic("ERROR: Malloc Failed\n");
-	new_inode->pointer = __allocate_SRAM(file_size, TEXT_FILE);
-	if (new_inode == NULL) panic("ERROR: Index Node Overflow\n");
-
-	strncpy(new_inode->name, file_name, BERDOS_INODE_NAME_SIZE);
-	new_inode->name[BERDOS_INODE_NAME_SIZE] = '\0';
-	new_inode->size = file_size;
-	new_inode->mode = FILE_NODE;
-
-	printf("KERNEL: Creating File \"%s\" @ \"%s\"\n", new_inode->name, pathname);
-
-	new_inode->child_node = NULL;
-	new_inode->sibling_node = NULL;
-	if (__root_directory != NULL) {
-		index_node *directory = __parse_pathname(pathname);
-		if (directory == NULL) panic("ERROR: Bad Pathname\n");
-		if (directory->child_node == NULL) {
-			directory->child_node = new_inode;
-		} else {
-			if (directory->child_node->sibling_node == NULL) {
-				directory->child_node->sibling_node = new_inode;
-			} else {
-				index_node *youngest_sibling = directory->child_node;
-				while (youngest_sibling->sibling_node != NULL) {
-					youngest_sibling = youngest_sibling->sibling_node;
-				};
-				youngest_sibling->sibling_node = new_inode;
-			};
-		};
-	} else {
-		panic("ERROR: Null Root Directory\n");
-	};
-	return new_inode->pointer;
-}
-
 // ### PROCESS -- UTILITY FUNCTIONS
-control_block *__get_process_by_id_number(unsigned int node_id_number) {
+static control_block *__get_process_by_id_number(unsigned int node_id_number) {
 	control_block *process = __head;
 	while (process != NULL) {
 		if (process->id_number == node_id_number) {
@@ -298,14 +336,14 @@ static control_block *__get_parent_process(control_block *child_process) {
 }
 
 // ### PROCESS -- STATE CHANGING
-control_block *create_process(void (*function_pointer)(), unsigned int *starting_arguments, control_block *parent_process) {
+control_block *__create_process(void (*function_pointer)(), unsigned int *starting_arguments, control_block *parent_process) {
 	static unsigned int new_id_number;
 	printf("KERNEL: Creating Process #%d \n", new_id_number);
 
 	if (process_count >= BERDOS_PROCESS_LIMIT) panic("ERROR: Control Block Overflow\n");
 
-	control_block *new_process = malloc(sizeof(control_block));
-	if (new_process == NULL) panic("ERROR: Malloc Failed\n");
+	control_block *new_process = (control_block *) __allocate_SRAM(sizeof(control_block), OPERATING_SYSTEM_DATA);
+	if (new_process == NULL) panic("ERROR: SRAM Allocation Failed\n");
 	new_process->address_space = __allocate_SRAM(sizeof(address_space), PROCESS_ADDRESS_SPACE);
 	if (new_process->address_space == NULL) panic("ERROR: SRAM Allocation Failed\n");
 
@@ -361,7 +399,7 @@ control_block *create_process(void (*function_pointer)(), unsigned int *starting
 	return new_process;
 }
 
-void terminate_process(control_block *process, control_block *parent_process){
+void __terminate_process(control_block *process, control_block *parent_process){
 	printf("KERNEL: Terminating Process #%d @0x%X §%d\n", process->id_number, process, process->status);
 
 	process->status = TERMINATED;
@@ -403,17 +441,18 @@ void terminate_process(control_block *process, control_block *parent_process){
 		parent_process->child_node = process->sibling_node;
 	} else {
 		control_block *previous_sibling = parent_process->child_node;
-		if (previous_sibling->sibling_node != process) {
+		while (previous_sibling->sibling_node != process) {
 			previous_sibling = previous_sibling->sibling_node;
+			if (previous_sibling == NULL) panic("ERROR: Unexpected Process Hierarchy\n");
 		};
 		previous_sibling->sibling_node = process->sibling_node;
 	};
 	while (process->child_node != NULL) {
-		terminate_process(process->child_node, process);
+		__terminate_process(process->child_node, process);
 	};
 
-	process->address_space = __deallocate_SRAM(process->address_space, sizeof(address_space));
-	free(process);
+	process->address_space = __deallocate_SRAM(process->address_space);
+	process = __deallocate_SRAM(process);
 
 	process_count--;
 }
@@ -557,10 +596,8 @@ void kernel_initizalize(void) {
 
   	__create_directory(":)", NULL);
 
-  	void *os_heap = __allocate_SRAM((BERDOS_PARTITION_SIZE * 16), OPERATING_SYSTEM_DATA);
-	void *free = __allocate_SRAM((BERDOS_PARTITION_SIZE * 240), PROCESS_ADDRESS_SPACE);
-	void *os_stack = __allocate_SRAM((BERDOS_PARTITION_SIZE * 8), OPERATING_SYSTEM_DATA);
-	__deallocate_SRAM(free, (BERDOS_PARTITION_SIZE * 240));
+  	for (uint i = 0; i < (0x2A20 / BERDOS_PARTITION_SIZE) + 1; i++) bitmap[i] = OPERATING_SYSTEM_DATA;
+  	for (uint i = 0; i < (0x1F40 / BERDOS_PARTITION_SIZE) + 1; i++) bitmap[BERDOS_PARTITION_COUNT - 1 - i] = OPERATING_SYSTEM_DATA;
 
   	__head = NULL;
 	__tail = NULL;
@@ -583,17 +620,50 @@ void kernel_start(void) {
 // ### KERNEL - SYSTEM CALL HANDLERS
 void __exit(void) {
 	control_block *caller_process = __get_executing_process();
-	terminate_process(caller_process, __get_parent_process(caller_process));
+	__terminate_process(caller_process, __get_parent_process(caller_process));
 }
 
 unsigned int __spawn(void (*function_pointer)(), unsigned int *starting_arguments) {
-	return create_process(function_pointer, starting_arguments, __get_executing_process())->id_number;
+	return __create_process(function_pointer, starting_arguments, __get_executing_process())->id_number;
 }
 
 void __mkdir(char *directory_name, char *pathname) {
-	__create_directory(directory_name, pathname);
+	index_node *parent_directory = __parse_pathname(pathname);
+	if (parent_directory == NULL) panic("ERROR: Bad Pathname\n");
+	__create_directory(directory_name, parent_directory);
 }
 
-void *__create(char *file_name, size_t file_size, char *pathname) {
-	return __create_file(file_name, file_size, pathname);
+void __rmdir(char *pathname) {
+	index_node *directory = __parse_pathname(pathname);
+	if (directory == NULL) panic("ERROR: Bad Pathname\n");
+	__delete_directory(directory, directory->parent_node);
 }
+
+void __create(char *file_name, size_t file_size, char *pathname) {
+	index_node *parent_directory = __parse_pathname(pathname);
+	if (parent_directory == NULL) panic("ERROR: Bad Pathname\n");
+	__create_file(file_name, file_size, parent_directory);
+}
+
+void __delete(char *pathname) {
+	index_node *file = __parse_pathname(pathname);
+	if (file == NULL) panic("ERROR: Bad Pathname\n");
+	__delete_file(file, file->parent_node);
+}
+
+void __read(char *pathname, char *buffer, size_t count) {
+	index_node *file = __parse_pathname(pathname);
+	if (file == NULL) panic("ERROR: Bad Pathname\n");
+
+	printf("KERNEL: Reading File \"%s\"\n", file->name);
+	strncpy(buffer, file->file_pointer, count);
+}
+
+void __write(char *pathname, const char *buffer, size_t count) {
+	index_node *file = __parse_pathname(pathname);
+	if (file == NULL) panic("ERROR: Bad Pathname\n");
+	if (count > file->size) panic("ERROR: Buffer Underflow\n");
+
+	printf("KERNEL: Writing to File \"%s\"\n", file->name);
+	strncpy(file->file_pointer, buffer, count);
+} 

@@ -3,35 +3,16 @@
 
 .local __svcall_0
 __svcall_0:
-    B .L3
+    B .L4
 
 .local __svcall_1
 __svcall_1:
-    PUSH {R4}
-    MOV R4, LR
-    PUSH {R4}
-    MOV R4, R0
-    PUSH {R0-R3}
-
-    LDR R0, [R4]
-
     BL __exit
-
-    POP {R0-R3}
-    POP {R4}
-    MOV LR, R4
-    POP {R4}
 
     B .L3
 
 .local __svcall_2
 __svcall_2:
-    PUSH {R4}
-    MOV R4, LR
-    PUSH {R4}
-    MOV R4, R0
-    PUSH {R0-R3}
-
     LDR R0, [R4]
     LDR R1, [R4, #0x04]
 
@@ -39,77 +20,81 @@ __svcall_2:
 
     STR R0, [R4]
 
-    POP {R0-R3}
-    POP {R4}
-    MOV LR, R4
-    POP {R4}
-
     B .L3
 
 .local __svcall_3
 __svcall_3:
-    PUSH {R4}
-    MOV R4, LR
-    PUSH {R4}
-    MOV R4, R0
-    PUSH {R0-R3}
-
     LDR R0, [R4]
     LDR R1, [R4, #0x04]
+    LDR R2, [R4, #0x08]
 
     BL __mkdir
 
-    POP {R0-R3}
-    POP {R4}
-    MOV LR, R4
-    POP {R4}
+    B .L3
+
+.local __svcall_3
+__svcall_4:
+    LDR R0, [R4]
+
+    BL __rmdir
 
     B .L3
 
-.local __svcall_4
-__svcall_4:
-    PUSH {R4}
-    MOV R4, LR
-    PUSH {R4}
-    MOV R4, R0
-    PUSH {R0-R3}
-
+.local __svcall_5
+__svcall_5:
     LDR R0, [R4]
     LDR R1, [R4, #0x04]
     LDR R2, [R4, #0x08]
 
     BL __create
 
-    STR R0, [R4]
+    B .L3
 
-    POP {R0-R3}
-    POP {R4}
-    MOV LR, R4
-    POP {R4}
+.local __svcall_6
+__svcall_6:
+    LDR R0, [R4]
+
+    BL __delete
+
+    B .L3
+
+.local __svcall_7
+__svcall_7:
+    LDR R0, [R4]
+    LDR R1, [R4, #0x04]
+    LDR R2, [R4, #0x08]
+
+    BL __read
+
+    B .L3
+
+.local __svcall_8
+__svcall_8:
+    LDR R0, [R4]
+    LDR R1, [R4, #0x04]
+    LDR R2, [R4, #0x08]
+
+    BL __write
 
     B .L3
 
 .type isr_svcall, %function
 .global isr_svcall
 isr_svcall:
-.L0:
-    MOVS R0, #0b100
-    MOV R1, LR
-    TST R0, R1
-    BEQ .L1
-
     MRS R0, PSP
-    B .L2
-.L1:
-    MRS R0, MSP
-    B .L2
-.L2:
     LDR R1, [R0, #0x18]
     SUBS R1, #0x2
     LDRB R1, [R1]
 
     CMP R1, #0
     BEQ __svcall_0
+
+    PUSH {R4}
+    MOV R4, LR
+    PUSH {R4}
+    MOV R4, R0
+    PUSH {R0-R3}
+
     CMP R1, #1
     BEQ __svcall_1
     CMP R1, #2
@@ -118,7 +103,21 @@ isr_svcall:
     BEQ __svcall_3
     CMP R1, #4
     BEQ __svcall_4
+    CMP R1, #5
+    BEQ __svcall_5
+    CMP R1, #6
+    BEQ __svcall_6
+    CMP R1, #7
+    BEQ __svcall_7
+    CMP R1, #8
+    BEQ __svcall_8
+
 .L3:
+    POP {R0-R3}
+    POP {R4}
+    MOV LR, R4
+    POP {R4}
+
     B .L4
 
 .type isr_systick, %function
@@ -224,9 +223,41 @@ os_mkdir:
     BX LR
 
 .align 2
+.global os_rmdir
+os_rmdir:
+    NOP
+    SVC 4
+    NOP 
+    BX LR
+
+.align 2
 .global os_create
 os_create:
     NOP
-    SVC 4
+    SVC 5
+    NOP
+    BX LR
+
+.align 2
+.global os_delete
+os_delete:
+    NOP
+    SVC 6
+    NOP
+    BX LR
+
+.align 2
+.global os_read
+os_read:
+    NOP
+    SVC 7
+    NOP
+    BX LR
+
+.align 2
+.global os_write
+os_write:
+    NOP
+    SVC 8
     NOP
     BX LR

@@ -4,7 +4,7 @@ add_subdirectory(kernel/)
 
 add_executable(boot boot/boot.c boot/boot.h) 
 
-set_target_properties(boot PROPERTIES COMPILE_FLAGS "-save-temps")
+### set_target_properties(boot PROPERTIES COMPILE_FLAGS "-save-temps")
 
 # Add pico_stdlib library which aggregates commonly used features
 target_link_libraries(boot pico_stdlib pico_malloc)
