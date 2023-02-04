@@ -78,6 +78,16 @@ __svcall_8:
 
     B .L3
 
+.local __svcall_9
+__svcall_9:
+    LDR R0, [R4]
+
+    BL __open
+
+    STR R0, [R4]
+
+    B .L3
+
 .type isr_svcall, %function
 .global isr_svcall
 isr_svcall:
@@ -111,6 +121,8 @@ isr_svcall:
     BEQ __svcall_7
     CMP R1, #8
     BEQ __svcall_8
+    CMP R1, #9
+    BEQ __svcall_9
 
 .L3:
     POP {R0-R3}
@@ -259,5 +271,13 @@ os_read:
 os_write:
     NOP
     SVC 8
+    NOP
+    BX LR
+
+.align 2
+.global os_open
+os_open:
+    NOP
+    SVC 9
     NOP
     BX LR

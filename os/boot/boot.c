@@ -5,9 +5,12 @@
 
 #include <stdio.h>
 #include <string.h>
+
 #include "pico/stdlib.h"
-#include "../kernel/kernel.h"
 #include "malloc.h"
+
+#include "../kernel/kernel.h"
+#include "../shell/shell.h"
 
 void blinker(unsigned int led_pin) {
     while (true) {
@@ -48,22 +51,23 @@ void hello(void) {
     os_exit();
 }
 
+void boot(void) {
+    unsigned int arguments_1[4] = {LED_PIN_GREEN, 0, 0, 0};
+    unsigned int arguments_2[4] = {LED_PIN_BLUE, 0, 0, 0};
+    unsigned int arguments_3[4] = {LED_PIN_RED, 0, 0, 0};
+    os_spawn(&blinker, arguments_1);
+    os_spawn(&blinker, arguments_2);
+    os_spawn(&blinker, arguments_3);
+
+    shell();
+}
+
 int main(void) {
     stdio_init_all();
     sleep_ms(5000);
 
     printf("BOOT: Initializing Kernel \n");
-    kernel_initizalize();
-
-    printf("BOOT: Creating Processes \n");
-    control_block *pid0 = __create_process(&hello, NULL, NULL);
-    unsigned int arguments_1[4] = {LED_PIN_GREEN, 0, 0, 0};
-    control_block *pid1 = __create_process(&blinker, arguments_1, pid0);
-    unsigned int arguments_2[4] = {LED_PIN_BLUE, 0, 0, 0};
-    control_block *pid2 = __create_process(&blinker, arguments_2, pid0);
-    unsigned int arguments_3[4] = {LED_PIN_RED, 0, 0, 0};
-    control_block *pid3 = __create_process(&blinker, arguments_3, pid0);
-
+    kernel_initizalize(&boot);
     printf("BOOT: Starting Kernel \n");
     kernel_start();
 

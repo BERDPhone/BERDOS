@@ -17,7 +17,7 @@
 #define BERDOS_INODE_NAME_SIZE 15
 #define BERDOS_MAX_PATHNAME_SIZE 31
 
-#define BERDOS_DEFAULT_SCHEDULER 1 // 0 = FIRST_COME_FIRST_SERVED, 1 = ROUND_ROBIN, 2 = SHORTEST_JOB_NEXT, 3 = SHORTEST_REMAINING_TIME_NEXT
+#define BERDOS_DEFAULT_SCHEDULER 0 // 0 = FIRST_COME_FIRST_SERVED, 1 = ROUND_ROBIN, 2 = SHORTEST_JOB_NEXT, 3 = SHORTEST_REMAINING_TIME_NEXT
 
 // # DATA DECLARATIONS
 // ## FILE SYSTEM
@@ -88,23 +88,23 @@ typedef enum schedulers {
 
 // # FUNCTION DECLARATIONS
 // ## PROCESS MANAGEMENT
-// ### PROCESS -- STATE MANAGEMENT
-control_block *__create_process(void (*function_pointer)(), unsigned int *starting_arguments, control_block *parent_node);
-void __terminate_process(control_block *process, control_block *parent_node);
-
 // ## KERNEL OPERATION
 // ### KERNEL -- START-UP
-void kernel_initizalize(void);
+void kernel_initizalize(void (*shell)(void));
 void kernel_start(void);
 
-// ## KERNEL -- SYSTEM CALLS
+// ### KERNEL -- UTILITY
+void print_diagnostics(void);
+
+// ### KERNEL -- SYSTEM CALLS
 void os_yield(void);
 void os_exit(void);
 unsigned int os_spawn(void (*function_pointer)(), unsigned int *starting_arguments);
 
-void os_mkdir(char *directory_name, char *pathname);
+void os_mkdir(char *pathname, char *directory_name);
 void os_rmdir(char *pathname);
 
+index_node *os_open(char *pathname);
 void os_create(char *file_name, size_t file_size, char *pathname);
 void os_delete(char *pathname);
 void os_read(char *pathname, char *buffer, size_t count);

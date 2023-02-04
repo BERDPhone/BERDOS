@@ -1,17 +1,18 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <stdarg.h>
 #include <string.h>
 
 #include "kernel.h"
-#include "../boot/boot.h"
 
 #include "pico/stdlib.h"
+#include "pico/sync.h"
 #include "hardware/structs/systick.h"
-#include "hardware/sync.h"
 #include "malloc.h"
 
 // # DATA DECLARATIONS & FUNCTION PROTOTYPES
+// ## DIAGNOSTICS
+bool diagnostics_mode = 0;
+
 // ## FILE MANAGEMENT
 index_node *__root_directory = NULL;
 
@@ -39,7 +40,7 @@ static unsigned int device_queue_index;
 
 // # FUNCTION DEFINITIONS
 // ## DIAGNOSTICS
-static void __print_diagnostics() {
+void print_diagnostics() {
 	printf("******************************************************************\n");
 	printf("DIAGNOSTICS:\n");
 	printf("Bitmap: @0x%X\n",  memory_utilization);
@@ -177,7 +178,7 @@ void *__create_file(char *file_name, size_t file_size, index_node *parent_direct
 	new_inode->size = file_size;
 	new_inode->mode = FILE_INODE;
 
-	printf("KERNEL: Creating File \"%s\" @0x%X @ \"%s\"\n", new_inode->name, new_inode->file_pointer, parent_directory->name);
+	if (diagnostics_mode) printf("KERNEL: Creating File \"%s\" @0x%X @ \"%s\"\n", new_inode->name, new_inode->file_pointer, parent_directory->name);
 
 	new_inode->parent_node = parent_directory;
 	new_inode->child_node = NULL;
@@ -202,7 +203,7 @@ void *__create_file(char *file_name, size_t file_size, index_node *parent_direct
 }
 
 void __delete_file(index_node *file, index_node *parent_directory) {
-	printf("KERNEL: Deleting File \"%s\"\n", file->name);
+	if (diagnostics_mode) printf("KERNEL: Deleting File \"%s\"\n", file->name);
 
 	if (file->mode == DIRECTORY_INODE) panic("ERROR: Pathname to Directory not File");
 
@@ -231,7 +232,7 @@ void __create_directory(char *directory_name, index_node *parent_directory) {
 	new_inode->mode = DIRECTORY_INODE;
 	new_inode->file_pointer = NULL;
 
-	printf("KERNEL: Creating Directory \"%s\" @ \"%s\"\n", new_inode->name, parent_directory->name);
+	if (diagnostics_mode) printf("KERNEL: Creating Directory \"%s\" @ \"%s\"\n", new_inode->name, parent_directory->name);
 
 	new_inode->parent_node = parent_directory;
 	new_inode->child_node = NULL;
@@ -253,7 +254,7 @@ void __create_directory(char *directory_name, index_node *parent_directory) {
 }
 
 void __delete_directory(index_node *directory, index_node *parent_directory) {
-	printf("KERNEL: Deleting Dirrectory \"%s\"\n", directory->name);
+	if (diagnostics_mode) printf("KERNEL: Deleting Dirrectory \"%s\"\n", directory->name);
 
 	if (directory->mode == FILE_INODE) panic("ERROR: Pathname to File not Directory\n");
 
@@ -338,7 +339,7 @@ static control_block *__get_parent_process(control_block *child_process) {
 // ### PROCESS -- STATE CHANGING
 control_block *__create_process(void (*function_pointer)(), unsigned int *starting_arguments, control_block *parent_process) {
 	static unsigned int new_id_number;
-	printf("KERNEL: Creating Process #%d \n", new_id_number);
+	if (diagnostics_mode) printf("KERNEL: Creating Process #%d \n", new_id_number);
 
 	if (process_count >= BERDOS_PROCESS_LIMIT) panic("ERROR: Control Block Overflow\n");
 
@@ -400,7 +401,7 @@ control_block *__create_process(void (*function_pointer)(), unsigned int *starti
 }
 
 void __terminate_process(control_block *process, control_block *parent_process){
-	printf("KERNEL: Terminating Process #%d @0x%X §%d\n", process->id_number, process, process->status);
+	if (diagnostics_mode) printf("KERNEL: Terminating Process #%d @0x%X §%d\n", process->id_number, process, process->status);
 
 	process->status = TERMINATED;
 
@@ -458,7 +459,7 @@ void __terminate_process(control_block *process, control_block *parent_process){
 }
 
 static void __execute_process(control_block *process) {
-	printf("KERNEL: Executing Process #%d @0x%X §%d\n", process->id_number, process, process->status);
+	if (diagnostics_mode) printf("KERNEL: Executing Process #%d @0x%X §%d\n", process->id_number, process, process->status);
 	
 	if (process->status == READY) {
 		process->status = EXECUTING;
@@ -467,7 +468,7 @@ static void __execute_process(control_block *process) {
 }
 
 static void __block_process(control_block *process) {
-	printf("KERNEL: Blocking Process #%d @0x%X §%d\n", process->id_number, process, process->status);
+	if (diagnostics_mode) printf("KERNEL: Blocking Process #%d @0x%X §%d\n", process->id_number, process, process->status);
 	
 	if (process->status == EXECUTING || process->status == READY) {
 		process->status = BLOCKED;
@@ -485,7 +486,7 @@ static void __block_process(control_block *process) {
 }
 
 static void __ready_process(control_block *process) {
-	printf("KERNEL: Readying Process #%d @0x%X §%d\n", process->id_number, process, process->status);
+	if (diagnostics_mode) printf("KERNEL: Readying Process #%d @0x%X §%d\n", process->id_number, process, process->status);
 
 	if (process->status == EXECUTING || process->status == BLOCKED || process->status == CREATED) {
 		ready_queue[ready_queue_index] = process;
@@ -528,14 +529,14 @@ static void __dispatcher(control_block *process) {
 }
 
 static void __short_term_scheduler() {
-	printf("KERNEL: Short-Term Scheduling\n");
+	if (diagnostics_mode) printf("KERNEL: Short-Term Scheduling\n");
 	for (uint i = 0; i < ready_queue_index; i++) {
 		__dispatcher(ready_queue[i]);
 	};
 }
 
 static void __medium_term_scheduler() {
-	printf("KERNEL: Medium-Term Scheduling\n");
+	if (diagnostics_mode) printf("KERNEL: Medium-Term Scheduling\n");
 	switch (scheduling_dicipline) {
 		case FIRST_COME_FIRST_SERVED:
 			__disable_preemption();
@@ -569,7 +570,7 @@ static void __medium_term_scheduler() {
 }
 
 static void __long_term_scheduler(void) {
-	printf("KERNEL: Long-Term Scheduling\n");
+	if (diagnostics_mode) printf("KERNEL: Long-Term Scheduling\n");
 	if (process_count == 0) panic("ERROR:\n");
 
 	control_block *process = __head;
@@ -583,7 +584,11 @@ static void __long_term_scheduler(void) {
 
 // ## KERNEL OPERATION
 // ### KERNEL - START-UP
-void kernel_initizalize(void) {
+void kernel_initizalize(void (*shell)(void)) {
+	printf("> Diagnostic Mode? (Y/N)\n");
+	char c = getchar();
+	if (c == 'y' || c == 'Y') diagnostics_mode = 1;
+
 	process_count = 0;
 	memory_utilization = 0;
 	scheduling_dicipline = BERDOS_DEFAULT_SCHEDULER;
@@ -606,11 +611,13 @@ void kernel_initizalize(void) {
   	ready_queue_index = 0;
 	job_queue_index = 0;
 	device_queue_index = 0;
+
+	__create_process(shell, NULL, NULL);
 }
 
 void kernel_start(void) {
 	while (true) {
-		__print_diagnostics();
+		if (diagnostics_mode) print_diagnostics();
 		__long_term_scheduler();
 		__medium_term_scheduler();
 		__short_term_scheduler();
@@ -618,52 +625,58 @@ void kernel_start(void) {
 }
 
 // ### KERNEL - SYSTEM CALL HANDLERS
-void __exit(void) {
+extern void __exit(void) {
 	control_block *caller_process = __get_executing_process();
 	__terminate_process(caller_process, __get_parent_process(caller_process));
 }
 
-unsigned int __spawn(void (*function_pointer)(), unsigned int *starting_arguments) {
+extern unsigned int __spawn(void (*function_pointer)(), unsigned int *starting_arguments) {
 	return __create_process(function_pointer, starting_arguments, __get_executing_process())->id_number;
 }
 
-void __mkdir(char *directory_name, char *pathname) {
+extern void __mkdir(char *pathname, char *directory_name) {
 	index_node *parent_directory = __parse_pathname(pathname);
 	if (parent_directory == NULL) panic("ERROR: Bad Pathname\n");
 	__create_directory(directory_name, parent_directory);
 }
 
-void __rmdir(char *pathname) {
+extern void __rmdir(char *pathname) {
 	index_node *directory = __parse_pathname(pathname);
 	if (directory == NULL) panic("ERROR: Bad Pathname\n");
 	__delete_directory(directory, directory->parent_node);
 }
 
-void __create(char *file_name, size_t file_size, char *pathname) {
+extern void __create(char *file_name, size_t file_size, char *pathname) {
 	index_node *parent_directory = __parse_pathname(pathname);
 	if (parent_directory == NULL) panic("ERROR: Bad Pathname\n");
 	__create_file(file_name, file_size, parent_directory);
 }
 
-void __delete(char *pathname) {
+extern void __delete(char *pathname) {
 	index_node *file = __parse_pathname(pathname);
 	if (file == NULL) panic("ERROR: Bad Pathname\n");
 	__delete_file(file, file->parent_node);
 }
 
-void __read(char *pathname, char *buffer, size_t count) {
+extern index_node *__open(char *pathname) {
+	index_node *inode = __parse_pathname(pathname);
+	if (inode == NULL) return NULL;
+	return inode;
+}
+
+extern void __read(char *pathname, char *buffer, size_t count) {
 	index_node *file = __parse_pathname(pathname);
 	if (file == NULL) panic("ERROR: Bad Pathname\n");
 
-	printf("KERNEL: Reading File \"%s\"\n", file->name);
+	if (diagnostics_mode) printf("KERNEL: Reading File \"%s\"\n", file->name);
 	strncpy(buffer, file->file_pointer, count);
 }
 
-void __write(char *pathname, const char *buffer, size_t count) {
+extern void __write(char *pathname, const char *buffer, size_t count) {
 	index_node *file = __parse_pathname(pathname);
 	if (file == NULL) panic("ERROR: Bad Pathname\n");
 	if (count > file->size) panic("ERROR: Buffer Underflow\n");
 
-	printf("KERNEL: Writing to File \"%s\"\n", file->name);
+	if (diagnostics_mode) printf("KERNEL: Writing to File \"%s\"\n", file->name);
 	strncpy(file->file_pointer, buffer, count);
-} 
+}
