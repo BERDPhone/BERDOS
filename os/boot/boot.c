@@ -27,31 +27,7 @@ void blinker(unsigned int led_pin) {
   os_exit();
 }
 
-void hi(void) {
-    printf("HI!\n");
-    os_exit();
-}
-
-void hello(void) {
-    unsigned int pidn = os_spawn(&hi, NULL);
-    os_mkdir(":0", "/:)");
-    os_create("File", BERDOS_PARTITION_SIZE * 3, "/:)/:0");
-
-    char buffer[12];
-    os_write("/:)/:0/File", "Hello World", 12);
-    os_read("/:)/:0/File", buffer, 12);
-    printf("%s\n", buffer);
-
-    os_rmdir("/:)/:0");
-
-    while (true) {
-        printf("HELLO!\n");
-        os_yield();
-    };
-    os_exit();
-}
-
-void boot(void) {
+void boot(unsigned int diagnostics_mode) {
     unsigned int arguments_1[4] = {LED_PIN_GREEN, 0, 0, 0};
     unsigned int arguments_2[4] = {LED_PIN_BLUE, 0, 0, 0};
     unsigned int arguments_3[4] = {LED_PIN_RED, 0, 0, 0};
@@ -59,16 +35,17 @@ void boot(void) {
     os_spawn(&blinker, arguments_2);
     os_spawn(&blinker, arguments_3);
 
-    shell();
+    if (diagnostics_mode == 0) {shell();};
+    while (true) {os_yield();};
 }
 
 int main(void) {
     stdio_init_all();
     sleep_ms(5000);
 
-    printf("BOOT: Initializing Kernel \n");
+    printf("BOOT: Initializing Kernel\n");
     kernel_initizalize(&boot);
-    printf("BOOT: Starting Kernel \n");
+    printf("BOOT: Starting Kernel\n");
     kernel_start();
 
     return 0;

@@ -11,4 +11,4 @@ install(FILES kernel.h DESTINATION include)
 
 ### set_target_properties(kernel PROPERTIES COMPILE_FLAGS "-save-temps")
 
-target_link_libraries(kernel pico_stdlib)
+target_link_libraries(kernel pico_stdlib pico_multicore pico_sync)

@@ -18,6 +18,7 @@
 #define BERDOS_MAX_PATHNAME_SIZE 31
 
 #define BERDOS_DEFAULT_SCHEDULER 0 // 0 = FIRST_COME_FIRST_SERVED, 1 = ROUND_ROBIN, 2 = SHORTEST_JOB_NEXT, 3 = SHORTEST_REMAINING_TIME_NEXT
+#define BERDOS_MULTICORE true
 
 // # DATA DECLARATIONS
 // ## FILE SYSTEM
@@ -77,6 +78,7 @@ typedef struct control_block {
 	struct    		control_block		*previous_node;
 	struct 			control_block 		*child_node;
 	struct 			control_block 		*sibling_node;
+	struct 			control_block 		*parent_node;
 } control_block;
 
 typedef enum schedulers {
@@ -87,27 +89,39 @@ typedef enum schedulers {
 } schedulers;
 
 // # FUNCTION DECLARATIONS
-// ## PROCESS MANAGEMENT
 // ## KERNEL OPERATION
 // ### KERNEL -- START-UP
-void kernel_initizalize(void (*shell)(void));
+void kernel_initizalize(void (*boot)(unsigned int));
 void kernel_start(void);
 
 // ### KERNEL -- UTILITY
 void print_diagnostics(void);
 
 // ### KERNEL -- SYSTEM CALLS
+typedef enum system_calls {
+	YIELD,
+	EXIT,
+	SPAWN,
+	MKDIR,
+	RMDIR,
+	CREATE,
+	DELETE,
+	READ,
+	WRITE,
+	OPEN,
+} system_calls;
+
 void os_yield(void);
 void os_exit(void);
 unsigned int os_spawn(void (*function_pointer)(), unsigned int *starting_arguments);
 
-void os_mkdir(char *pathname, char *directory_name);
-void os_rmdir(char *pathname);
+void os_mkdir(const char *pathname, const char *directory_name);
+void os_rmdir(const char *pathname);
 
-index_node *os_open(char *pathname);
-void os_create(char *file_name, size_t file_size, char *pathname);
-void os_delete(char *pathname);
-void os_read(char *pathname, char *buffer, size_t count);
-void os_write(char *pathname, char *buffer, size_t count);
+index_node *os_open(const char *pathname);
+void os_create(const char *file_name, size_t file_size, const char *pathname);
+void os_delete(const char *pathname);
+void os_read(const char *pathname, const char *buffer, size_t count);
+void os_write(const char *pathname, const char *buffer, size_t count);
 
 #endif

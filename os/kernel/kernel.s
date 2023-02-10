@@ -1,93 +1,6 @@
 .thumb
 .syntax unified
 
-.local __svcall_0
-__svcall_0:
-    B .L4
-
-.local __svcall_1
-__svcall_1:
-    BL __exit
-
-    B .L3
-
-.local __svcall_2
-__svcall_2:
-    LDR R0, [R4]
-    LDR R1, [R4, #0x04]
-
-    BL __spawn
-
-    STR R0, [R4]
-
-    B .L3
-
-.local __svcall_3
-__svcall_3:
-    LDR R0, [R4]
-    LDR R1, [R4, #0x04]
-    LDR R2, [R4, #0x08]
-
-    BL __mkdir
-
-    B .L3
-
-.local __svcall_3
-__svcall_4:
-    LDR R0, [R4]
-
-    BL __rmdir
-
-    B .L3
-
-.local __svcall_5
-__svcall_5:
-    LDR R0, [R4]
-    LDR R1, [R4, #0x04]
-    LDR R2, [R4, #0x08]
-
-    BL __create
-
-    B .L3
-
-.local __svcall_6
-__svcall_6:
-    LDR R0, [R4]
-
-    BL __delete
-
-    B .L3
-
-.local __svcall_7
-__svcall_7:
-    LDR R0, [R4]
-    LDR R1, [R4, #0x04]
-    LDR R2, [R4, #0x08]
-
-    BL __read
-
-    B .L3
-
-.local __svcall_8
-__svcall_8:
-    LDR R0, [R4]
-    LDR R1, [R4, #0x04]
-    LDR R2, [R4, #0x08]
-
-    BL __write
-
-    B .L3
-
-.local __svcall_9
-__svcall_9:
-    LDR R0, [R4]
-
-    BL __open
-
-    STR R0, [R4]
-
-    B .L3
-
 .type isr_svcall, %function
 .global isr_svcall
 isr_svcall:
@@ -96,47 +9,19 @@ isr_svcall:
     SUBS R1, #0x2
     LDRB R1, [R1]
 
-    CMP R1, #0
-    BEQ __svcall_0
+    LDR R2, =system_call_number
+    STR R1, [R2]
 
-    PUSH {R4}
-    MOV R4, LR
-    PUSH {R4}
-    MOV R4, R0
-    PUSH {R0-R3}
+    LDR R2, =hardware_frame_pointer
+    STR R0, [R2]
 
-    CMP R1, #1
-    BEQ __svcall_1
-    CMP R1, #2
-    BEQ __svcall_2
-    CMP R1, #3
-    BEQ __svcall_3
-    CMP R1, #4
-    BEQ __svcall_4
-    CMP R1, #5
-    BEQ __svcall_5
-    CMP R1, #6
-    BEQ __svcall_6
-    CMP R1, #7
-    BEQ __svcall_7
-    CMP R1, #8
-    BEQ __svcall_8
-    CMP R1, #9
-    BEQ __svcall_9
-
-.L3:
-    POP {R0-R3}
-    POP {R4}
-    MOV LR, R4
-    POP {R4}
-
-    B .L4
+    B .L3
 
 .type isr_systick, %function
 .global isr_systick
 isr_systick:
     MRS R0, PSP
-.L4:
+.L3:
     SUBS R0, #4
     MOV R1, LR
     STR R1, [R0]
@@ -281,3 +166,19 @@ os_open:
     SVC 9
     NOP
     BX LR
+
+.align 2
+.global os_print
+os_print:
+    NOP
+    SVC 10
+    NOP
+    BX LR
+
+.data
+.global system_call_number
+system_call_number:
+    .word system_call_number
+.global hardware_frame_pointer
+hardware_frame_pointer:
+    .word hardware_frame_pointer

@@ -159,7 +159,6 @@ static void __execute_line(char token_table[BERDOS_COMMAND_LENGTH + 1][BERDOS_SH
 	if (strncmp(token_table[0], "top", 4) == 0) {
 		print_diagnostics();
 	};
-
 	if (strncmp(token_table[0], "touch", 6) == 0) {
 		char absolute_pathname[BERDOS_MAX_PATHNAME_SIZE] = "\0";
 		__translate_pathname(token_table[1], absolute_pathname);

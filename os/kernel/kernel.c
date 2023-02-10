@@ -3,9 +3,8 @@
 #include <string.h>
 
 #include "kernel.h"
-
-#include "pico/stdlib.h"
 #include "pico/sync.h"
+#include "pico/multicore.h"
 #include "hardware/structs/systick.h"
 #include "malloc.h"
 
@@ -21,8 +20,10 @@ unsigned int memory_utilization;
 enum bitmap_partition bitmap[BERDOS_PARTITION_COUNT] = {UNALLOCATED};
 
 // ## PROCESS MANAGEMENT
-void __initialize_main_stack(unsigned int *MSP);
-unsigned int *__context_switch(unsigned int *PSP);
+extern void __initialize_main_stack(unsigned int *MSP);
+extern unsigned int *__context_switch(unsigned int *PSP);
+extern enum system_calls system_call_number;
+extern unsigned int *hardware_frame_pointer;
 
 unsigned int process_count;
 enum schedulers scheduling_dicipline;
@@ -30,6 +31,7 @@ enum schedulers scheduling_dicipline;
 control_block *__head = NULL;
 control_block *__tail = NULL;
 control_block *__root = NULL;
+void (*__boot_function)(unsigned int);
 
 static control_block *ready_queue[BERDOS_PROCESS_LIMIT] = {NULL};
 static control_block *job_queue[BERDOS_PROCESS_LIMIT] = {NULL};
@@ -38,11 +40,14 @@ static unsigned int ready_queue_index;
 static unsigned int job_queue_index;
 static unsigned int device_queue_index;
 
+// ## MULTICORE SYNCRONIZATION
+mutex_t os_lock;
+
 // # FUNCTION DEFINITIONS
 // ## DIAGNOSTICS
 void print_diagnostics() {
 	printf("******************************************************************\n");
-	printf("DIAGNOSTICS:\n");
+	printf("DIAGNOSTICS: &%d\n", get_core_num());
 	printf("Bitmap: @0x%X\n",  memory_utilization);
 	for (uint j = 0; j < BERDOS_PARTITION_COUNT; j += 66) {
 		for (uint i = j; i < j + 66; i++) {
@@ -311,34 +316,11 @@ static control_block *__get_process_by_id_number(unsigned int node_id_number) {
 	return NULL;
 }
 
-static control_block *__get_executing_process(void) {
-	control_block *process = __head;
-	while (process != NULL) {
-		if (process->status == EXECUTING) {
-			return process;
-		};
-		process = process->next_node;
-	};
-	return NULL;
-}
-
-static control_block *__get_parent_process(control_block *child_process) {
-	control_block *process = __head;
-	while (process != NULL) {
-		if (process->child_node == child_process) {
-			return process;
-		};
-		if (process->sibling_node == child_process) {
-			return __get_parent_process(process);
-		};
-		process = process->next_node;
-	};
-	return NULL;
-}
-
 // ### PROCESS -- STATE CHANGING
-control_block *__create_process(void (*function_pointer)(), unsigned int *starting_arguments, control_block *parent_process) {
+control_block *__create_process(void (*function_pointer)(), void *arguments, control_block *parent_process) {
+	unsigned int *starting_arguments = arguments;
 	static unsigned int new_id_number;
+
 	if (diagnostics_mode) printf("KERNEL: Creating Process #%d \n", new_id_number);
 
 	if (process_count >= BERDOS_PROCESS_LIMIT) panic("ERROR: Control Block Overflow\n");
@@ -374,6 +356,7 @@ control_block *__create_process(void (*function_pointer)(), unsigned int *starti
 		__tail = new_process;
 	};
 
+	new_process->parent_node = parent_process;
 	new_process->child_node = NULL;
 	new_process->sibling_node = NULL;
 	if (__root != NULL) {
@@ -400,7 +383,7 @@ control_block *__create_process(void (*function_pointer)(), unsigned int *starti
 	return new_process;
 }
 
-void __terminate_process(control_block *process, control_block *parent_process){
+void __terminate_process(control_block *process){
 	if (diagnostics_mode) printf("KERNEL: Terminating Process #%d @0x%X §%d\n", process->id_number, process, process->status);
 
 	process->status = TERMINATED;
@@ -438,10 +421,10 @@ void __terminate_process(control_block *process, control_block *parent_process){
 		__tail = process->previous_node;
 	};
 
-	if (parent_process->child_node == process) {
-		parent_process->child_node = process->sibling_node;
+	if (process->parent_node->child_node == process) {
+		process->parent_node->child_node = process->sibling_node;
 	} else {
-		control_block *previous_sibling = parent_process->child_node;
+		control_block *previous_sibling = process->parent_node->child_node;
 		while (previous_sibling->sibling_node != process) {
 			previous_sibling = previous_sibling->sibling_node;
 			if (previous_sibling == NULL) panic("ERROR: Unexpected Process Hierarchy\n");
@@ -449,7 +432,7 @@ void __terminate_process(control_block *process, control_block *parent_process){
 		previous_sibling->sibling_node = process->sibling_node;
 	};
 	while (process->child_node != NULL) {
-		__terminate_process(process->child_node, process);
+		__terminate_process(process->child_node);
 	};
 
 	process->address_space = __deallocate_SRAM(process->address_space);
@@ -459,18 +442,21 @@ void __terminate_process(control_block *process, control_block *parent_process){
 }
 
 static void __execute_process(control_block *process) {
-	if (diagnostics_mode) printf("KERNEL: Executing Process #%d @0x%X §%d\n", process->id_number, process, process->status);
+	if (diagnostics_mode) printf("KERNEL: Executing Process #%d @0x%X §%d &%d\n", process->id_number, process, process->status, get_core_num());
 	
 	if (process->status == READY) {
 		process->status = EXECUTING;
+
+		mutex_exit(&os_lock);
 		process->address_space->stack_pointer = __context_switch(process->address_space->stack_pointer);
+		mutex_enter_blocking(&os_lock);
 	};
 }
 
 static void __block_process(control_block *process) {
 	if (diagnostics_mode) printf("KERNEL: Blocking Process #%d @0x%X §%d\n", process->id_number, process, process->status);
 	
-	if (process->status == EXECUTING || process->status == READY) {
+	if (process->status == READY) {
 		process->status = BLOCKED;
 
 		for (uint i = 0; i < BERDOS_PROCESS_LIMIT; i++) {
@@ -488,7 +474,7 @@ static void __block_process(control_block *process) {
 static void __ready_process(control_block *process) {
 	if (diagnostics_mode) printf("KERNEL: Readying Process #%d @0x%X §%d\n", process->id_number, process, process->status);
 
-	if (process->status == EXECUTING || process->status == BLOCKED || process->status == CREATED) {
+	if (process->status == BLOCKED || process->status == CREATED) {
 		ready_queue[ready_queue_index] = process;
 		ready_queue_index++;
 
@@ -496,7 +482,90 @@ static void __ready_process(control_block *process) {
 	};
 }
 
-// ### PROCESS -- SCHEDULING
+// ## KERNEL OPERATION
+// ### KERNEL - ROOT PROCESS
+void __idle(void) {
+	while (true) {os_yield();};
+}
+
+// ### KERNEL - SYSTEM CALL HANDLERS
+void __exit(control_block *caller_process) {
+	__terminate_process(caller_process);
+}
+
+unsigned int __spawn(void (*function_pointer)(), unsigned int *starting_arguments, control_block *caller_process) {
+	return __create_process(function_pointer, starting_arguments, caller_process)->id_number;
+}
+
+void __mkdir(char *pathname, char *directory_name) {
+	index_node *parent_directory = __parse_pathname(pathname);
+	if (parent_directory == NULL) panic("ERROR: Bad Pathname\n");
+	__create_directory(directory_name, parent_directory);
+}
+
+void __rmdir(char *pathname) {
+	index_node *directory = __parse_pathname(pathname);
+	if (directory == NULL) panic("ERROR: Bad Pathname\n");
+	__delete_directory(directory, directory->parent_node);
+}
+
+void __create(char *file_name, size_t file_size, char *pathname) {
+	index_node *parent_directory = __parse_pathname(pathname);
+	if (parent_directory == NULL) panic("ERROR: Bad Pathname\n");
+	__create_file(file_name, file_size, parent_directory);
+}
+
+void __delete(char *pathname) {
+	index_node *file = __parse_pathname(pathname);
+	if (file == NULL) panic("ERROR: Bad Pathname\n");
+	__delete_file(file, file->parent_node);
+}
+
+index_node *__open(char *pathname) {
+	index_node *inode = __parse_pathname(pathname);
+	if (inode == NULL) return NULL;
+	return inode;
+}
+
+void __read(char *pathname, char *buffer, size_t count) {
+	index_node *file = __parse_pathname(pathname);
+	if (file == NULL) panic("ERROR: Bad Pathname\n");
+
+	if (diagnostics_mode) printf("KERNEL: Reading File \"%s\"\n", file->name);
+	strncpy(buffer, file->file_pointer, count);
+}
+
+void __write(char *pathname, const char *buffer, size_t count) {
+	index_node *file = __parse_pathname(pathname);
+	if (file == NULL) panic("ERROR: Bad Pathname\n");
+	if (count > file->size) panic("ERROR: Buffer Underflow\n");
+
+	if (diagnostics_mode) printf("KERNEL: Writing to File \"%s\"\n", file->name);
+	strncpy(file->file_pointer, buffer, count);
+}
+
+void __system_call_handler(control_block *caller_process) {
+	unsigned int result = hardware_frame_pointer[0];
+
+	switch (system_call_number) {
+		case YIELD: break;
+		case EXIT: __exit(caller_process); break;
+		case SPAWN: result = (uint) __spawn((void *)hardware_frame_pointer[0], (uint *)hardware_frame_pointer[1], caller_process); break;
+		case MKDIR: __mkdir((char *)hardware_frame_pointer[0], (char *)hardware_frame_pointer[1]); break;
+		case RMDIR: __rmdir((char *)hardware_frame_pointer[0]); break;
+		case CREATE: __create((char *)hardware_frame_pointer[0], (size_t) hardware_frame_pointer[1], (char *)hardware_frame_pointer[2]); break;
+		case DELETE: __delete((char *)hardware_frame_pointer[0]); break;
+		case READ: __read((char *)hardware_frame_pointer[0], (char *)hardware_frame_pointer[1], (size_t) hardware_frame_pointer[2]); break;
+		case WRITE: __write((char *)hardware_frame_pointer[0], (char *)hardware_frame_pointer[1], (size_t) hardware_frame_pointer[2]); break;
+		case OPEN: result = (uint) __open((char *)hardware_frame_pointer[0]); break;
+		default: break;
+	};
+	
+	hardware_frame_pointer[0] = result;
+	system_call_number = 0;
+}
+
+// ### KERNEL -- SCHEDULING
 static void __bubble_sort_queue(control_block *array[], unsigned int index, size_t member_offset) {
 	for (uint i = 0; i < index - 1; i++) {
 		for (uint j = 0; j < index - i - 1; j++) {
@@ -513,6 +582,8 @@ static void __bubble_sort_queue(control_block *array[], unsigned int index, size
 static void __dispatcher(control_block *process) {
 	__execute_process(process);
 
+	if (system_call_number != 0) __system_call_handler(process);
+
 	switch (process->status) {
 		case EXECUTING:
 			process->status = READY;
@@ -528,14 +599,21 @@ static void __dispatcher(control_block *process) {
 	};
 }
 
-static void __short_term_scheduler() {
+static void __short_term_scheduler(void) {
 	if (diagnostics_mode) printf("KERNEL: Short-Term Scheduling\n");
 	for (uint i = 0; i < ready_queue_index; i++) {
-		__dispatcher(ready_queue[i]);
+		if (ready_queue[i]->status == READY) __dispatcher(ready_queue[i]);
+
+		if (ready_queue_index == 1) {
+			mutex_exit(&os_lock);
+			__asm__("NOP");
+			__asm__("NOP");
+			mutex_enter_blocking(&os_lock);
+		};
 	};
 }
 
-static void __medium_term_scheduler() {
+static void __medium_term_scheduler(void) {
 	if (diagnostics_mode) printf("KERNEL: Medium-Term Scheduling\n");
 	switch (scheduling_dicipline) {
 		case FIRST_COME_FIRST_SERVED:
@@ -571,7 +649,8 @@ static void __medium_term_scheduler() {
 
 static void __long_term_scheduler(void) {
 	if (diagnostics_mode) printf("KERNEL: Long-Term Scheduling\n");
-	if (process_count == 0) panic("ERROR:\n");
+	if (process_count == 0) {__create_process(__idle, NULL, NULL);};
+	if (process_count == 1) {unsigned int arguments[4] = {diagnostics_mode}; __create_process(__boot_function, arguments, __root);};
 
 	control_block *process = __head;
 	while (process != NULL) {
@@ -582,101 +661,59 @@ static void __long_term_scheduler(void) {
 	};
 }
 
-// ## KERNEL OPERATION
 // ### KERNEL - START-UP
-void kernel_initizalize(void (*shell)(void)) {
-	printf("> Diagnostic Mode? (Y/N)\n");
-	char c = getchar();
-	if (c == 'y' || c == 'Y') diagnostics_mode = 1;
+void kernel_initizalize(void (*boot)(unsigned int)) {
+	if (get_core_num() == 0) {
+		printf("> Diagnostic Mode? (Y/N)\n");
+		char c = getchar();
+		if (c == 'y' || c == 'Y') diagnostics_mode = 1;
+	
+		process_count = 0;
+		memory_utilization = 0;
+		scheduling_dicipline = BERDOS_DEFAULT_SCHEDULER;
+	
+	  	for (uint i = 0; i < (0x2A20 / BERDOS_PARTITION_SIZE) + 1; i++) bitmap[i] = OPERATING_SYSTEM_DATA;
+	  	for (uint i = 0; i < (0x1F40 / BERDOS_PARTITION_SIZE) + 1; i++) bitmap[BERDOS_PARTITION_COUNT - 1 - i] = OPERATING_SYSTEM_DATA;
+	
+	  	__head = NULL;
+		__tail = NULL;
+		__root = NULL;
+		__boot_function = boot;
+	
+	  	ready_queue_index = 0;
+		job_queue_index = 0;
+		device_queue_index = 0;
 
-	process_count = 0;
-	memory_utilization = 0;
-	scheduling_dicipline = BERDOS_DEFAULT_SCHEDULER;
+		mutex_init(&os_lock);
+		
+		unsigned int arguments[4] = {diagnostics_mode};
+		__create_directory(":)", NULL);
+		__create_process(__idle, NULL, NULL);
+		__create_process(__boot_function, arguments, __root);
+	};
 
 	hw_set_bits((io_rw_32 *)(PPB_BASE + M0PLUS_SHPR2_OFFSET), M0PLUS_SHPR2_BITS);
-  	hw_set_bits((io_rw_32 *)(PPB_BASE + M0PLUS_SHPR3_OFFSET), M0PLUS_SHPR3_BITS);
+	hw_set_bits((io_rw_32 *)(PPB_BASE + M0PLUS_SHPR3_OFFSET), M0PLUS_SHPR3_BITS);
 
-  	unsigned int dummy[32];
-  	__initialize_main_stack(&dummy[32]);
+	unsigned int dummy[32];
+	__initialize_main_stack(&dummy[32]);
+}
 
-  	__create_directory(":)", NULL);
-
-  	for (uint i = 0; i < (0x2A20 / BERDOS_PARTITION_SIZE) + 1; i++) bitmap[i] = OPERATING_SYSTEM_DATA;
-  	for (uint i = 0; i < (0x1F40 / BERDOS_PARTITION_SIZE) + 1; i++) bitmap[BERDOS_PARTITION_COUNT - 1 - i] = OPERATING_SYSTEM_DATA;
-
-  	__head = NULL;
-	__tail = NULL;
-	__root = NULL;
-
-  	ready_queue_index = 0;
-	job_queue_index = 0;
-	device_queue_index = 0;
-
-	__create_process(shell, NULL, NULL);
+void __kernel_start_core1(void) {
+	kernel_initizalize(NULL);
+	kernel_start();
 }
 
 void kernel_start(void) {
+#if BERDOS_MULTICORE
+	if (get_core_num() == 0) multicore_launch_core1(&__kernel_start_core1);
+#endif
+
+	mutex_enter_blocking(&os_lock);
 	while (true) {
 		if (diagnostics_mode) print_diagnostics();
 		__long_term_scheduler();
 		__medium_term_scheduler();
 		__short_term_scheduler();
 	};
-}
-
-// ### KERNEL - SYSTEM CALL HANDLERS
-extern void __exit(void) {
-	control_block *caller_process = __get_executing_process();
-	__terminate_process(caller_process, __get_parent_process(caller_process));
-}
-
-extern unsigned int __spawn(void (*function_pointer)(), unsigned int *starting_arguments) {
-	return __create_process(function_pointer, starting_arguments, __get_executing_process())->id_number;
-}
-
-extern void __mkdir(char *pathname, char *directory_name) {
-	index_node *parent_directory = __parse_pathname(pathname);
-	if (parent_directory == NULL) panic("ERROR: Bad Pathname\n");
-	__create_directory(directory_name, parent_directory);
-}
-
-extern void __rmdir(char *pathname) {
-	index_node *directory = __parse_pathname(pathname);
-	if (directory == NULL) panic("ERROR: Bad Pathname\n");
-	__delete_directory(directory, directory->parent_node);
-}
-
-extern void __create(char *file_name, size_t file_size, char *pathname) {
-	index_node *parent_directory = __parse_pathname(pathname);
-	if (parent_directory == NULL) panic("ERROR: Bad Pathname\n");
-	__create_file(file_name, file_size, parent_directory);
-}
-
-extern void __delete(char *pathname) {
-	index_node *file = __parse_pathname(pathname);
-	if (file == NULL) panic("ERROR: Bad Pathname\n");
-	__delete_file(file, file->parent_node);
-}
-
-extern index_node *__open(char *pathname) {
-	index_node *inode = __parse_pathname(pathname);
-	if (inode == NULL) return NULL;
-	return inode;
-}
-
-extern void __read(char *pathname, char *buffer, size_t count) {
-	index_node *file = __parse_pathname(pathname);
-	if (file == NULL) panic("ERROR: Bad Pathname\n");
-
-	if (diagnostics_mode) printf("KERNEL: Reading File \"%s\"\n", file->name);
-	strncpy(buffer, file->file_pointer, count);
-}
-
-extern void __write(char *pathname, const char *buffer, size_t count) {
-	index_node *file = __parse_pathname(pathname);
-	if (file == NULL) panic("ERROR: Bad Pathname\n");
-	if (count > file->size) panic("ERROR: Buffer Underflow\n");
-
-	if (diagnostics_mode) printf("KERNEL: Writing to File \"%s\"\n", file->name);
-	strncpy(file->file_pointer, buffer, count);
 }
